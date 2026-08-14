@@ -9,7 +9,6 @@ using namespace std;
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
-// 外部に公開する必要のないヘルパー関数は、無名名前空間に入れてこのファイル内に閉じ込めます
 namespace {
     void EnableDebugLayer()
     {
@@ -229,7 +228,7 @@ void Dx12Wrapper::WaitForGPU()
 // ==========================================
 // リソース生成
 // ==========================================
-ComPtr<ID3D12Resource> Dx12Wrapper::CreateBuffer(size_t sizeInBytes, const void* data)
+ComPtr<ID3D12Resource> Dx12Wrapper::CreateBuffer(size_t sizeInBytes, const void* data, size_t dataSize /*= 0*/)
 {
 	ComPtr<ID3D12Resource> buffer = nullptr;
 	auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -247,18 +246,26 @@ ComPtr<ID3D12Resource> Dx12Wrapper::CreateBuffer(size_t sizeInBytes, const void*
 
 	if (data != nullptr) {
 		void* mappedPtr = nullptr;
-		hr = buffer->Map(0, nullptr, &mappedPtr);
+		// CPUから読み込まないことを明確にするため Range(0, 0) を指定
+		CD3DX12_RANGE readRange(0, 0);
+		hr = buffer->Map(0, &readRange, &mappedPtr);
+		
 		if (SUCCEEDED(hr)) {
-			std::memcpy(mappedPtr, data, sizeInBytes);
-			buffer->Unmap(0, nullptr);
+			// dataSize が指定されていなければ sizeInBytes を使用
+			size_t copySize = (dataSize > 0) ? dataSize : sizeInBytes;
+			std::memcpy(mappedPtr, data, copySize);
+
+			// 書き込んだ範囲を指定して Unmap (nullptr でも可)
+			CD3DX12_RANGE writeRange(0, copySize);
+			buffer->Unmap(0, &writeRange);
 		}
 	}
 	return buffer;
 }
 
 ComPtr<ID3D12Resource> Dx12Wrapper::CreateTextureFromFile(
-	const wchar_t* filePath,
-	ComPtr<ID3D12DescriptorHeap>& outSrvHeap)
+	const wchar_t* filePath
+)
 {
 	HRESULT result;
 
@@ -326,26 +333,6 @@ ComPtr<ID3D12Resource> Dx12Wrapper::CreateTextureFromFile(
 	// コマンドリストをリセット（次の描画等に備える）
 	_cmdAllocator->Reset();
 	_cmdList->Reset(_cmdAllocator.Get(), nullptr);
-
-	// 7. シェーダリソースビュー (SRV) の作成
-	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
-	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = 1;
-	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	_dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&outSrvHeap));
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = metadata.format;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-
-	_dev->CreateShaderResourceView(
-		texbuff.Get(),
-		&srvDesc,
-		outSrvHeap->GetCPUDescriptorHandleForHeapStart()
-	);
 
 	return texbuff;
 }

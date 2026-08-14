@@ -84,26 +84,39 @@ public:
 		if (!compileShader(L"BasicVertexShader.hlsl", "BasicVS", "vs_5_0", _vsBlob)) return -1;
 		if (!compileShader(L"BasicPixelShader.hlsl", "BasicPS", "ps_5_0", _psBlob)) return -1;
 
-		// ・ルートシグネチャの作成
+		// ルートシグネチャの作成
+		// ディスクリプタレンジ
+		D3D12_DESCRIPTOR_RANGE descTblRange[2] = {}; // テクスチャと定数の2つ
+		// テクスチャ用レジスター0番
+		descTblRange[0].NumDescriptors = 1; // テクスチャ１つ
+		descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // 種別はテクスチャ
+		descTblRange[0].BaseShaderRegister = 0; // 0番スロットから
+		descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		// 定数用レジスター1番
+		descTblRange[1].NumDescriptors = 1; // 定数1つ
+		descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
+		descTblRange[1].BaseShaderRegister = 0; // 0番スロットから
+		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_ROOT_PARAMETER rootparam = {};
+		rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootparam.DescriptorTable.pDescriptorRanges = descTblRange;
+		rootparam.DescriptorTable.NumDescriptorRanges = 2;
+		rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		//D3D12_ROOT_PARAMETER rootparam[2] = {};
+		//rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		//rootparam[0].DescriptorTable.pDescriptorRanges = &descTblRange[0];
+		//rootparam[0].DescriptorTable.NumDescriptorRanges = 1;
+		//rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;//ピクセルシェーダーから見える
+		//rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		//rootparam[1].DescriptorTable.pDescriptorRanges = &descTblRange[1];
+		//rootparam[1].DescriptorTable.NumDescriptorRanges = 1;
+		//rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;//頂点シェーダーから見える
+
 		// ルートシグネチャ
 		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-		// ディスクリプタレンジ
-		D3D12_DESCRIPTOR_RANGE descTblRange = {};
-		descTblRange.NumDescriptors = 1;
-		descTblRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		descTblRange.BaseShaderRegister = 0;
-		descTblRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-		// ルートパラメータ作成
-		D3D12_ROOT_PARAMETER rootparam = {};
-		rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-		rootparam.DescriptorTable.pDescriptorRanges = &descTblRange;
-		rootparam.DescriptorTable.NumDescriptorRanges = 1;
-
 		rootSignatureDesc.pParameters = &rootparam;
 		rootSignatureDesc.NumParameters = 1;
 
@@ -200,7 +213,7 @@ public:
 		gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
 		gpipeline.NumRenderTargets = 1;
-		gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
 		gpipeline.SampleDesc.Count = 1;
 		gpipeline.SampleDesc.Quality = 0;
@@ -215,7 +228,7 @@ public:
 	void Draw(Dx12Wrapper& dx12,
 		const D3D12_VERTEX_BUFFER_VIEW& vbView,
 		const D3D12_INDEX_BUFFER_VIEW& ibView,
-		ID3D12DescriptorHeap* texDescHeap,
+		ID3D12DescriptorHeap* descHeap,
 		int indexCount)
 	{
 		auto cmdList = dx12.CommandList();
@@ -225,9 +238,14 @@ public:
 		cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
 		// テクスチャ（ヒープ）のセット
-		ID3D12DescriptorHeap* ppHeaps[] = { texDescHeap };
+		ID3D12DescriptorHeap* ppHeaps[] = { descHeap };
 		cmdList->SetDescriptorHeaps(1, ppHeaps);
-		cmdList->SetGraphicsRootDescriptorTable(0, texDescHeap->GetGPUDescriptorHandleForHeapStart());
+
+		cmdList->SetGraphicsRootDescriptorTable(0, descHeap->GetGPUDescriptorHandleForHeapStart());
+		//auto handle = descHeap->GetGPUDescriptorHandleForHeapStart();
+		//cmdList->SetGraphicsRootDescriptorTable(0, handle); // [0] SRV
+		//handle.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		//cmdList->SetGraphicsRootDescriptorTable(1, handle); // [1] CBV
 
 		// ジオメトリのセットと描画
 		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -300,14 +318,47 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ibView.Format = DXGI_FORMAT_R16_UINT;
 	ibView.SizeInBytes = sizeof(indices);
 	
-	//画像
-	// --- 画像のロードとテクスチャリソース・SRVの作成 ---
-	ComPtr<ID3D12DescriptorHeap> texDescHeap = nullptr;
-	ComPtr<ID3D12Resource> texbuff = dx12.CreateTextureFromFile(L"img/tsukimi_jugoya.png", texDescHeap);
+	XMMATRIX matrix = XMMatrixIdentity();
+	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
+	size_t cbSize = (sizeof(matrix) + 255) & ~255; // 256バイトアライメント
 
-	if (!texbuff) {
-		return -1; // ロード失敗時
-	}
+	// 定数バッファ
+	ComPtr<ID3D12Resource> constBuff = dx12.CreateBuffer(cbSize, &matrix, sizeof(matrix));
+
+	// テクスチャのロード（SRVはまだ作らない）
+	ComPtr<ID3D12Resource> texbuff = dx12.CreateTextureFromFile(L"img/tsukimi_jugoya.png");
+
+	// 2. 定数バッファビューをディスクリプタヒープに追加する
+	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	descHeapDesc.NodeMask = 0;
+	descHeapDesc.NumDescriptors = 2; // SRV 1 つとCBV 1つ
+	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+	ComPtr<ID3D12DescriptorHeap> basicDescHeap = nullptr;
+	result = dx12.Device()->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&basicDescHeap));
+	if (FAILED(result)) return -1;
+
+	// ディスクリプタの先頭ハンドルを取得しておく
+	auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
+
+	// [0] SRV
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = texbuff->GetDesc().Format;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	dx12.Device()->CreateShaderResourceView(texbuff.Get(), &srvDesc, basicHeapHandle);
+
+	// [1] CBV
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = static_cast<UINT>(constBuff->GetDesc().Width);
+	// 次の場所に移動
+	basicHeapHandle.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	dx12.Device()->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+
+	// 4. シェーダから利用する
 #pragma endregion region 4. アセットの作成とデータ転送
 
 #pragma region 5. メインループ
@@ -321,8 +372,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			// ========= 描画前処理 =========
 			dx12.BeginDraw();
 
-			// ========= 実際の描画 (ここだけ残る) =========
-			renderer.Draw(dx12, vbView, ibView, texDescHeap.Get(), 6);
+			// ========= 実際の描画 =========
+			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), 6);
 
 			// ========= 描画後処理とGPU同期 =========
 			dx12.EndDraw();

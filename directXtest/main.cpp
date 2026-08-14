@@ -166,6 +166,8 @@ private:
 	std::vector<ComPtr<ID3D12Resource>> _backBuffers;
 	ComPtr<ID3D12Fence> _fence;
 	UINT64 _fenceVal = 0;
+	D3D12_VIEWPORT _viewport = {};
+	D3D12_RECT _scissorRect = {};
 public:
 	// Region 3 や Region 4 からアクセスするためのゲッター
 	ID3D12Device* Device() const { return _dev.Get(); }
@@ -310,6 +312,18 @@ public:
 		result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 		if (FAILED(result)) return false;
 
+		_viewport.Width = static_cast<float>(window_width);
+		_viewport.Height = static_cast<float>(window_height);
+		_viewport.TopLeftX = 0;
+		_viewport.TopLeftY = 0;
+		_viewport.MaxDepth = 1.0f;
+		_viewport.MinDepth = 0.0f;
+
+		_scissorRect.top = 0;
+		_scissorRect.left = 0;
+		_scissorRect.right = window_width;
+		_scissorRect.bottom = window_height;
+
 		return true;
 	}
 
@@ -326,6 +340,10 @@ public:
 
 		float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+		// ビューポートとシザー矩形
+		_cmdList->RSSetViewports(1, &_viewport);
+		_cmdList->RSSetScissorRects(1, &_scissorRect);
 	}
 
 	// Region 5 の描画後処理とGPU同期
@@ -341,16 +359,257 @@ public:
 
 		_swapchain->Present(1, 0);
 
+		WaitForGPU();
+
+		_cmdAllocator->Reset();
+		_cmdList->Reset(_cmdAllocator.Get(), nullptr);
+	}
+
+	void WaitForGPU()
+	{
+		// コマンドキューにシグナルを送る
 		_cmdQueue->Signal(_fence.Get(), ++_fenceVal);
+
+		// GPUがシグナルに到達するまで待つ
 		if (_fence->GetCompletedValue() != _fenceVal) {
 			auto event = CreateEvent(nullptr, false, false, nullptr);
 			_fence->SetEventOnCompletion(_fenceVal, event);
 			WaitForSingleObject(event, INFINITE);
 			CloseHandle(event);
 		}
+	}
 
-		_cmdAllocator->Reset();
-		_cmdList->Reset(_cmdAllocator.Get(), nullptr);
+	// 汎用的なバッファ作成関数
+	ComPtr<ID3D12Resource> CreateBuffer(size_t sizeInBytes, const void* data)
+	{
+		ComPtr<ID3D12Resource> buffer = nullptr;
+		auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(sizeInBytes);
+
+		HRESULT hr = _dev->CreateCommittedResource(
+			&heapprop,
+			D3D12_HEAP_FLAG_NONE,
+			&resdesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&buffer)
+		);
+		if (FAILED(hr)) return nullptr;
+
+		if (data != nullptr) {
+			void* mappedPtr = nullptr;
+			hr = buffer->Map(0, nullptr, &mappedPtr);
+			if (SUCCEEDED(hr)) {
+				std::memcpy(mappedPtr, data, sizeInBytes);
+				buffer->Unmap(0, nullptr);
+			}
+		}
+		return buffer;
+	}
+};
+
+class BasicRenderer
+{
+private:
+	ComPtr<ID3D12RootSignature> _rootSignature;
+	ComPtr<ID3D12PipelineState> _pipelineState;
+
+public:
+	// 初期化：シェーダーコンパイル、ルートシグネチャ、PSOの作成を行う
+	bool Init(Dx12Wrapper& dx12)
+	{
+		// dx12.Device() を使ってルートシグネチャやPSOを作成し、
+		// メンバ変数の _rootSignature と _pipelineState に格納します。
+
+		HRESULT result;
+		
+		// ・シェーダーのコンパイル
+		ComPtr<ID3DBlob> _vsBlob = nullptr;
+		ComPtr<ID3DBlob> _psBlob = nullptr;
+
+		// コンパイルとエラー出力を一括で扱うローカル関数
+		auto compileShader = [](const wchar_t* fileName, const char* entryPoint, const char* target, ComPtr<ID3DBlob>& outBlob) -> bool {
+			ComPtr<ID3DBlob> errorBlob = nullptr;
+
+			HRESULT hr = D3DCompileFromFile(
+				fileName,
+				nullptr,
+				D3D_COMPILE_STANDARD_FILE_INCLUDE,
+				entryPoint, target,
+				D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
+				0,
+				&outBlob, &errorBlob
+			);
+
+			if (FAILED(hr)) {
+				if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+					::OutputDebugStringA("ファイルが見当たりません\n");
+				}
+				else if (errorBlob) {
+					std::string errstr(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize());
+					errstr += "\n";
+					::OutputDebugStringA(errstr.c_str());
+				}
+				return false;
+			}
+			return true;
+			};
+
+		if (!compileShader(L"BasicVertexShader.hlsl", "BasicVS", "vs_5_0", _vsBlob)) return -1;
+		if (!compileShader(L"BasicPixelShader.hlsl", "BasicPS", "ps_5_0", _psBlob)) return -1;
+
+		// ・ルートシグネチャの作成
+		// ルートシグネチャ
+		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+
+		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+		// ディスクリプタレンジ
+		D3D12_DESCRIPTOR_RANGE descTblRange = {};
+		descTblRange.NumDescriptors = 1;
+		descTblRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		descTblRange.BaseShaderRegister = 0;
+		descTblRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		// ルートパラメータ作成
+		D3D12_ROOT_PARAMETER rootparam = {};
+		rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		rootparam.DescriptorTable.pDescriptorRanges = &descTblRange;
+		rootparam.DescriptorTable.NumDescriptorRanges = 1;
+
+		rootSignatureDesc.pParameters = &rootparam;
+		rootSignatureDesc.NumParameters = 1;
+
+		//サンプラーの設定
+		D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
+		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+		samplerDesc.MinLOD = 0.0f;
+		samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+
+		rootSignatureDesc.pStaticSamplers = &samplerDesc;
+		rootSignatureDesc.NumStaticSamplers = 1;
+
+		ComPtr<ID3DBlob> rootSigBlob = nullptr;
+		ComPtr<ID3DBlob> errorBlob = nullptr;
+		result = D3D12SerializeRootSignature(
+			&rootSignatureDesc,
+			D3D_ROOT_SIGNATURE_VERSION_1_0,
+			&rootSigBlob,
+			&errorBlob
+		);
+		if (FAILED(result)) {
+			if (errorBlob) {
+				OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
+			}
+			return -1;
+		}
+		result = dx12.Device()->CreateRootSignature(
+			0,
+			rootSigBlob->GetBufferPointer(),
+			rootSigBlob->GetBufferSize(),
+			IID_PPV_ARGS(&_rootSignature)
+		);
+		if (FAILED(result)) return -1;
+		rootSigBlob.Reset();
+
+		// ・パイプラインステートオブジェクト(PSO)の作成
+		// シェーダーのセット
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
+		gpipeline.pRootSignature = _rootSignature.Get();
+
+		gpipeline.VS.pShaderBytecode = _vsBlob->GetBufferPointer();
+		gpipeline.VS.BytecodeLength = _vsBlob->GetBufferSize();
+		gpipeline.PS.pShaderBytecode = _psBlob->GetBufferPointer();
+		gpipeline.PS.BytecodeLength = _psBlob->GetBufferSize();
+
+		// サンプルマスクとラスタライザーステート
+		// デフォルトのサンプルマスクを表す定数 (0xffffffff)
+		gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
+
+		// まだアンチエイリアスを使わないため false
+		gpipeline.RasterizerState.MultisampleEnable = false;
+
+		gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // カリングしない
+		gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; // 中身塗りつぶし
+		gpipeline.RasterizerState.DepthClipEnable = true; // 深度方向のクリッピングは有効に
+
+		gpipeline.BlendState.AlphaToCoverageEnable = false;
+		gpipeline.BlendState.IndependentBlendEnable = false;
+
+		D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
+		renderTargetBlendDesc.BlendEnable = false;
+		renderTargetBlendDesc.LogicOpEnable = false;
+		renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+		gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
+
+		// 頂点レイアウト
+		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
+			{// 座標情報
+				"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
+				D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			},
+			{// uv
+				"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
+				0, D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			}
+		};
+
+		// ・ビューポートとシザー矩形の設定
+		gpipeline.InputLayout.pInputElementDescs = inputLayout; // レイアウト先頭アドレス
+		gpipeline.InputLayout.NumElements = _countof(inputLayout); // レイアウト配列の要素数
+
+		gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+
+		//三角形で構成
+		gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+		gpipeline.NumRenderTargets = 1;
+		gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+		gpipeline.SampleDesc.Count = 1;
+		gpipeline.SampleDesc.Quality = 0;
+
+		result = dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelineState));
+		if (FAILED(result))return -1;
+
+		return true;
+	}
+
+	// 描画コマンドの積み込み
+	void Draw(Dx12Wrapper& dx12,
+		const D3D12_VERTEX_BUFFER_VIEW& vbView,
+		const D3D12_INDEX_BUFFER_VIEW& ibView,
+		ID3D12DescriptorHeap* texDescHeap,
+		int indexCount)
+	{
+		auto cmdList = dx12.CommandList();
+
+		// パイプラインの設定
+		cmdList->SetPipelineState(_pipelineState.Get());
+		cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+
+		// テクスチャ（ヒープ）のセット
+		ID3D12DescriptorHeap* ppHeaps[] = { texDescHeap };
+		cmdList->SetDescriptorHeaps(1, ppHeaps);
+		cmdList->SetGraphicsRootDescriptorTable(0, texDescHeap->GetGPUDescriptorHandleForHeapStart());
+
+		// ジオメトリのセットと描画
+		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		cmdList->IASetVertexBuffers(0, 1, &vbView);
+		cmdList->IASetIndexBuffer(&ibView);
+
+		// インデックス数を指定して描画
+		cmdList->DrawIndexedInstanced(indexCount, 1, 0, 0, 0);
 	}
 };
 
@@ -380,211 +639,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	HRESULT result;
 #pragma region 3. パイプラインの構築
-// ・シェーダーのコンパイル
-	ComPtr<ID3DBlob> _vsBlob = nullptr;
-	ComPtr<ID3DBlob> _psBlob = nullptr;
-
-	// コンパイルとエラー出力を一括で扱うローカル関数
-	auto compileShader = [](const wchar_t* fileName, const char* entryPoint, const char* target, ComPtr<ID3DBlob>& outBlob) -> bool {
-		ComPtr<ID3DBlob> errorBlob = nullptr;
-
-		HRESULT hr = D3DCompileFromFile(
-			fileName,
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			entryPoint, target,
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
-			0,
-			&outBlob, &errorBlob
-		);
-
-		if (FAILED(hr)) {
-			if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
-				::OutputDebugStringA("ファイルが見当たりません\n");
-			}
-			else if (errorBlob) {
-				std::string errstr(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize());
-				errstr += "\n";
-				::OutputDebugStringA(errstr.c_str());
-			}
-			return false;
-		}
-		return true;
-		};
-
-	if (!compileShader(L"BasicVertexShader.hlsl", "BasicVS", "vs_5_0", _vsBlob)) return -1;
-	if (!compileShader(L"BasicPixelShader.hlsl", "BasicPS", "ps_5_0", _psBlob)) return -1;
-
-	// ・ルートシグネチャの作成
-	// ルートシグネチャ
-	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-
-	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-	// ディスクリプタレンジ
-	D3D12_DESCRIPTOR_RANGE descTblRange = {};
-	descTblRange.NumDescriptors = 1;
-	descTblRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descTblRange.BaseShaderRegister = 0;
-	descTblRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-	// ルートパラメータ作成
-	D3D12_ROOT_PARAMETER rootparam = {};
-	rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	rootparam.DescriptorTable.pDescriptorRanges = &descTblRange;
-	rootparam.DescriptorTable.NumDescriptorRanges = 1;
-
-	rootSignatureDesc.pParameters = &rootparam;
-	rootSignatureDesc.NumParameters = 1;
-
-	//サンプラーの設定
-	D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
-	samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-	samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-	samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
-	samplerDesc.MinLOD = 0.0f;
-	samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-
-	rootSignatureDesc.pStaticSamplers = &samplerDesc;
-	rootSignatureDesc.NumStaticSamplers = 1;
-
-	ComPtr<ID3DBlob> rootSigBlob = nullptr;
-	ComPtr<ID3DBlob> errorBlob = nullptr;
-	result = D3D12SerializeRootSignature(
-		&rootSignatureDesc,
-		D3D_ROOT_SIGNATURE_VERSION_1_0,
-		&rootSigBlob,
-		&errorBlob
-	);
-	if (FAILED(result)) {
-		if (errorBlob) {
-			OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
-		}
-		return -1;
-	}
-	ComPtr<ID3D12RootSignature> rootsignature;
-	result = dx12.Device()->CreateRootSignature(
-		0,
-		rootSigBlob->GetBufferPointer(),
-		rootSigBlob->GetBufferSize(),
-		IID_PPV_ARGS(&rootsignature)
-	);
-	if (FAILED(result)) return -1;
-	rootSigBlob.Reset();
-
-	// ・パイプラインステートオブジェクト(PSO)の作成
-	// シェーダーのセット
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
-	gpipeline.pRootSignature = rootsignature.Get();
-
-	gpipeline.VS.pShaderBytecode = _vsBlob->GetBufferPointer();
-	gpipeline.VS.BytecodeLength = _vsBlob->GetBufferSize();
-	gpipeline.PS.pShaderBytecode = _psBlob->GetBufferPointer();
-	gpipeline.PS.BytecodeLength = _psBlob->GetBufferSize();
-
-	// サンプルマスクとラスタライザーステート
-	// デフォルトのサンプルマスクを表す定数 (0xffffffff)
-	gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
-
-	// まだアンチエイリアスを使わないため false
-	gpipeline.RasterizerState.MultisampleEnable = false;
-
-	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // カリングしない
-	gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; // 中身塗りつぶし
-	gpipeline.RasterizerState.DepthClipEnable = true; // 深度方向のクリッピングは有効に
-
-	gpipeline.BlendState.AlphaToCoverageEnable = false;
-	gpipeline.BlendState.IndependentBlendEnable = false;
-
-	D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
-	renderTargetBlendDesc.BlendEnable = false;
-	renderTargetBlendDesc.LogicOpEnable = false;
-	renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-
-	gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
-
-	// 頂点レイアウト
-	D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-		{// 座標情報
-			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
-			D3D12_APPEND_ALIGNED_ELEMENT,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-		},
-		{// uv
-			"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
-			0, D3D12_APPEND_ALIGNED_ELEMENT,
-			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-		}
-	};
-
-	// ・ビューポートとシザー矩形の設定
-	gpipeline.InputLayout.pInputElementDescs = inputLayout; // レイアウト先頭アドレス
-	gpipeline.InputLayout.NumElements = _countof(inputLayout); // レイアウト配列の要素数
-
-	gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
-
-	//三角形で構成
-	gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-
-	gpipeline.NumRenderTargets = 1;
-	gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-
-	gpipeline.SampleDesc.Count = 1;
-	gpipeline.SampleDesc.Quality = 0;
-
-	ComPtr<ID3D12PipelineState> _pipelinestate = nullptr;
-	result = dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelinestate));
-	if (FAILED(result))return -1;
-
-	D3D12_VIEWPORT viewport = {};
-
-	viewport.Width = window_width;
-	viewport.Height = window_height;
-	viewport.TopLeftX = 0;
-	viewport.TopLeftY = 0;
-	viewport.MaxDepth = 1.0f;
-	viewport.MinDepth = 0.0f;
-
-	D3D12_RECT scissorrect = {};
-	scissorrect.top = 0;
-	scissorrect.left = 0;
-	scissorrect.right = scissorrect.left + window_width;
-	scissorrect.bottom = scissorrect.right + window_height;
-
+	BasicRenderer renderer;
+	renderer.Init(dx12); // パイプライン構築
 #pragma endregion 3. パイプラインの構築
 
 #pragma region 4. アセットの作成とデータ転送
-	// 任意のデータをUploadヒープのバッファーとして作成するラムダ式
-	auto CreateUploadBuffer = [&](const void* data, size_t sizeInBytes, ComPtr<ID3D12Resource>& outBuffer) -> bool {
-		D3D12_HEAP_PROPERTIES heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-
-		D3D12_RESOURCE_DESC resdesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(data));
-
-		HRESULT hr = dx12.Device()->CreateCommittedResource(
-			&heapprop,
-			D3D12_HEAP_FLAG_NONE,
-			&resdesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&outBuffer)
-		);
-		if (FAILED(hr)) return false;
-
-		// データのコピー
-		void* mappedPtr = nullptr;
-		hr = outBuffer->Map(0, nullptr, &mappedPtr);
-		if (FAILED(hr)) return false;
-
-		std::memcpy(mappedPtr, data, sizeInBytes);
-		outBuffer->Unmap(0, nullptr);
-
-		return true;
-		};
 
 	// 頂点バッファー
 	Vertex vertices[] =
@@ -594,8 +653,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		{{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},
 		{{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}}
 	};
-	ComPtr<ID3D12Resource> vertBuff = nullptr;
-	if (!CreateUploadBuffer(vertices, sizeof(vertices), vertBuff)) return -1;
+	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(sizeof(vertices), vertices);
 
 	// 頂点バッファービュー
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
@@ -608,9 +666,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		0, 1, 2,
 		2, 1, 3
 	};
-	ComPtr<ID3D12Resource> idxBuff = nullptr;
-	if (!CreateUploadBuffer(indices, sizeof(indices), idxBuff)) return -1;
-
+	ComPtr<ID3D12Resource> idxBuff = dx12.CreateBuffer(sizeof(indices), indices);
 
 	// インデックスバッファービューを作成
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
@@ -774,13 +830,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ID3D12CommandList* cmdlists[] = { dx12.CommandList() };
 	dx12.CommandQueue()->ExecuteCommandLists(1, cmdlists);
 
-	dx12.CommandQueue()->Signal(dx12.Fence(), ++dx12.FenceVal());
-	if (dx12.Fence()->GetCompletedValue() != dx12.FenceVal()) {
-		auto event = CreateEvent(nullptr, false, false, nullptr);
-		dx12.Fence()->SetEventOnCompletion(dx12.FenceVal(), event);
-		WaitForSingleObject(event, INFINITE);
-		CloseHandle(event);
-	}
+	dx12.WaitForGPU();
 
 	dx12.CommandAllocator()->Reset();
 	dx12.CommandList()->Reset(dx12.CommandAllocator(), nullptr);
@@ -798,21 +848,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			dx12.BeginDraw();
 
 			// ========= 実際の描画 (ここだけ残る) =========
-			auto cmdList = dx12.CommandList();
-			cmdList->SetPipelineState(_pipelinestate.Get());
-			cmdList->SetGraphicsRootSignature(rootsignature.Get());
-
-			ID3D12DescriptorHeap* ppHeaps[] = { texDescHeap.Get() };
-			cmdList->SetDescriptorHeaps(1, ppHeaps);
-			cmdList->SetGraphicsRootDescriptorTable(0, texDescHeap->GetGPUDescriptorHandleForHeapStart());
-			
-			cmdList->RSSetViewports(1, &viewport);
-			cmdList->RSSetScissorRects(1, &scissorrect);
-
-			cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			cmdList->IASetVertexBuffers(0, 1, &vbView);
-			cmdList->IASetIndexBuffer(&ibView);
-			cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+			renderer.Draw(dx12, vbView, ibView, texDescHeap.Get(), 6);
 
 			// ========= 描画後処理とGPU同期 =========
 			dx12.EndDraw();

@@ -292,10 +292,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// 頂点バッファー
 	Vertex vertices[] =
 	{
-		{{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},
-		{{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},
-		{{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},
-		{{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}}
+		{{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
+		{{-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f}},
+		{{ 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
+		{{ 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f}}
 	};
 	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(sizeof(vertices), vertices);
 
@@ -317,13 +317,67 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
 	ibView.Format = DXGI_FORMAT_R16_UINT;
 	ibView.SizeInBytes = sizeof(indices);
-	
+
+
 	XMMATRIX matrix = XMMatrixIdentity();
+
+	// ワールド行列
+	// y軸中心に45度
+	auto worldMat = XMMatrixRotationY(XM_PIDIV4);
+
+	// ビュー行列
+	XMFLOAT3 eye(0, 0, -5);
+	XMFLOAT3 target(0, 0, 0);
+	XMFLOAT3 up(0, 1, 0);
+	auto viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+
+	//プロジェクション行列
+	auto projMat = XMMatrixPerspectiveFovLH(
+		XM_PIDIV2,
+		static_cast<float>(window_width) / static_cast<float>(window_height),
+		1.0f, // 近いクリップ面距離
+		10.0f // 遠いクリップ面距離
+	);
+	
+	/*matrix.r[0].m128_f32[0] = 2.0f / window_width;
+	matrix.r[1].m128_f32[1] = -2.0f / window_height;
+	matrix.r[3].m128_f32[0] = -1.0f;
+	matrix.r[3].m128_f32[1] = 1.0f;*/
+
 	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
 	size_t cbSize = (sizeof(matrix) + 255) & ~255; // 256バイトアライメント
 
 	// 定数バッファ
-	ComPtr<ID3D12Resource> constBuff = dx12.CreateBuffer(cbSize, &matrix, sizeof(matrix));
+	//ComPtr<ID3D12Resource> constBuff = dx12.CreateBuffer(cbSize, &matrix, sizeof(matrix));
+	ComPtr<ID3D12Resource> constBuff = nullptr;
+	auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(cbSize);
+
+	HRESULT hr = dx12.Device()->CreateCommittedResource(
+		&heapprop,
+		D3D12_HEAP_FLAG_NONE,
+		&resdesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&constBuff)
+	);
+	if (FAILED(hr)) return -1;
+	XMMATRIX* mappedPtr = nullptr;
+	if (&matrix != nullptr) {
+		// CPUから読み込まないことを明確にするため Range(0, 0) を指定
+		CD3DX12_RANGE readRange(0, 0);
+		hr = constBuff->Map(0, &readRange, (void**)&mappedPtr);
+
+		if (SUCCEEDED(hr)) {
+			// dataSize が指定されていなければ sizeInBytes を使用
+			size_t copySize = (sizeof(matrix) > 0) ? sizeof(matrix) : cbSize;
+			std::memcpy(mappedPtr, &matrix, copySize);
+
+			// 書き込んだ範囲を指定して Unmap (nullptr でも可)
+			//CD3DX12_RANGE writeRange(0, copySize);
+			//constBuff->Unmap(0, &writeRange);
+		}
+	}
 
 	// テクスチャのロード（SRVはまだ作らない）
 	ComPtr<ID3D12Resource> texbuff = dx12.CreateTextureFromFile(L"img/tsukimi_jugoya.png");
@@ -360,7 +414,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	// 4. シェーダから利用する
 #pragma endregion region 4. アセットの作成とデータ転送
-
+	float angle = 0.0f;
 #pragma region 5. メインループ
 	bool quit = false;
 	while (!quit) {
@@ -369,6 +423,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		}
 		else
 		{
+			angle += 0.1f;
+			worldMat = XMMatrixRotationY(angle);
+			*mappedPtr = worldMat * viewMat * projMat;
 			// ========= 描画前処理 =========
 			dx12.BeginDraw();
 

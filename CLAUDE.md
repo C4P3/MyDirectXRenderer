@@ -7,7 +7,14 @@ C++ / Visual Studio / Windows / DirectX12（DirectXTex, d3dx12.h を使用）
 ## 現状
 - `Application` … ウィンドウ生成とメッセージ処理
 - `Dx12Wrapper` … デバイス・スワップチェーン・RTV・フェンス、`BeginDraw`/`EndDraw`、バッファとテクスチャの生成
-- `main.cpp` … `BasicRenderer`（ルートシグネチャ + PSO）で板ポリ1枚にテクスチャを貼って表示。定数バッファは実装途中。
+- `main.cpp` … 未整理のものなど
+
+## 今後
+これらの予定だが固まり切っていない
+- `Application`
+- `Dx12Wrapper` viewMatrix, projMatrix, Init(), UPDATE(), Draw()
+- `PMDRenderer` PMD共通 pipeline, rootSignature, Update(), Draw()
+- `PMDActor` モデルごと vBView, iBView, transBuffer, materialNum, materialHeap, worldMatrix, Load(), Update(), Draw()
 
 ## 依頼の仕方
 - **コードは書かないでほしい。** ファイルの作成・編集はしない。聞いたことにチャットで答えるだけ。

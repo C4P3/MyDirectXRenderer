@@ -42,6 +42,18 @@ struct PMDHeader
 	char comment[256];	// モデルコメント
 };
 
+#pragma pack(push, 1) // 1バイト境界に設定（パディングを無効化）
+struct PMDVertex_Raw
+{
+	XMFLOAT3 pos;			// 12バイト
+	XMFLOAT3 normal;		// 12バイト
+	XMFLOAT2 uv;			// 8バイト
+	unsigned short boneNo[2];	// 4バイト
+	unsigned char boneWeight;	// 1バイト
+	unsigned char edgeFlg;		// 1バイト
+}; // これで確実に sizeof(PMDVertex_Raw) == 38 になる
+#pragma pack(pop) // 元のアライメント設定に戻す
+
 struct PMDVertex
 {
 	XMFLOAT3 pos;				// 頂点座標		: 12バイト
@@ -50,7 +62,8 @@ struct PMDVertex
 	unsigned short boneNo[2];	// ボーン番号	: 4バイト
 	unsigned char boneWeight;	// ボーン影響度 : 1バイト
 	unsigned char edgeFlg;		// 輪郭線フラグ	: 1バイト
-}; // 合計 38 バイト
+	unsigned char padding[2];	// 明示的に2バイト埋める (合計40バイト)
+};
 
 class BasicRenderer
 {
@@ -256,6 +269,16 @@ public:
 		gpipeline.SampleDesc.Count = 1;
 		gpipeline.SampleDesc.Quality = 0;
 
+		// 深度バッファー
+		gpipeline.DepthStencilState.DepthEnable = true;
+		gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL; // 書き込む
+		gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS; // 小さいほうを採用
+
+		gpipeline.DepthStencilState.StencilEnable = false;
+
+		gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+
+
 		result = dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelineState));
 		if (FAILED(result))return -1;
 
@@ -327,12 +350,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #pragma endregion 3. パイプラインの構築
 
 #pragma region 4. アセットの作成とデータ転送
+
+
 	// PMD
 	char signature[4] = {}; // 先頭3バイトは文字列"pmd"
 	PMDHeader pmdheader;
 	unsigned int vertNum; // 頂点数
-	constexpr size_t pmdvertex_size = 38;	// 1 頂点あたりのサイズ
-	std::vector<unsigned char> vertices;
+	constexpr size_t vert_raw_size = sizeof(PMDVertex_Raw); // 1頂点辺りのサイズ (38)
+	constexpr size_t vert_gpu_size = sizeof(PMDVertex);     // パディング済み (40)
+	std::vector<PMDVertex_Raw> rawVertices;// 受け取り用の38バイト頂点配列
+	std::vector<PMDVertex> vertices;// GPU用の40バイト頂点配列
 	std::vector<unsigned short> indices;
 	unsigned int indicesNum; // インデックス数
 
@@ -343,18 +370,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	fread(&pmdheader, sizeof(pmdheader), 1, fp);
 
 	fread(&vertNum, sizeof(vertNum), 1, fp); // 頂点数はヘッダーデータ直後
-	vertices.resize(vertNum * pmdvertex_size); // バッファーの確保
-	fread(vertices.data(), vertices.size(), 1, fp);
+	rawVertices.resize(vertNum * vert_raw_size); // バッファーの確保
+	fread(rawVertices.data(), rawVertices.size(), 1, fp);
 
 	fread(&indicesNum, sizeof(indicesNum), 1, fp);
 	indices.resize(indicesNum);
 	fread(indices.data(), indices.size() * sizeof(unsigned short), 1, fp);
 	fclose(fp);
 
-	std::vector<unsigned char> vb(vertNum * 40);
-	for (unsigned i = 0; i < vertNum; ++i)
-		memcpy(&vb[i * 40], &vertices[i * 38], 38);   // 残り2バイトはパディング
-	vertices.swap(vb);
+	// 入力レイアウトに R32G32B32_FLOAT（4バイト単位の型）が入っているので、
+	// ストライドも 4 の倍数でなければいけない
+	vertices.resize(vertNum);
+	for (unsigned i = 0; i < vertNum; ++i) {
+		// 必要な38バイト分だけコピー（残りのpaddingは0初期化される）
+		memcpy(&vertices[i], &rawVertices[i], vert_raw_size);
+	}
 
 	
 	
@@ -367,14 +397,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 
 
-	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(vertices.size(), vertices.data());
+	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(vertices.size() * vert_gpu_size, vertices.data());
 	ComPtr<ID3D12Resource> idxBuff = dx12.CreateBuffer(indices.size() * sizeof(unsigned short), indices.data());
 
 	// 頂点バッファービュー
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	vbView.BufferLocation = vertBuff->GetGPUVirtualAddress(); // バッファーの仮想アドレス
-	vbView.SizeInBytes = vertices.size();	// 全バイト数
-	vbView.StrideInBytes = 40;	// 一頂点辺りのバイト数
+	vbView.SizeInBytes = vertices.size() * vert_gpu_size;	// 全バイト数
+	vbView.StrideInBytes = vert_gpu_size;	// 一頂点辺りのバイト数
 
 	// インデックスバッファービューを作成
 	D3D12_INDEX_BUFFER_VIEW ibView = {};

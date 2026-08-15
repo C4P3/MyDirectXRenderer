@@ -10,5 +10,6 @@ min16uint weight : WEIGHT
     Output output; // ピクセルシェーダーに渡す値
     output.svpos = mul(mat, pos);
     output.uv = uv;
+    output.normal = normal;
 	return output;
 }

@@ -122,6 +122,57 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	result = swapchain1.As(&_swapchain);
 	if (FAILED(result)) return false;
 
+	// 深度バッファーの作成
+	D3D12_RESOURCE_DESC depthResDesc = {};
+	depthResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2次元のテクスチャデータ
+	depthResDesc.Width = window_width;
+	depthResDesc.Height = window_height;
+	depthResDesc.DepthOrArraySize = 1; // テクスチャ配列でも、3Dテクスチャでもない
+	depthResDesc.Format = DXGI_FORMAT_D32_FLOAT; // 深度値書き込み用フォーマット
+	depthResDesc.SampleDesc.Count = 1; // サンプル数は1ピクセルあたり1つ
+	depthResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL; // デプスステンシルとして使用
+
+	// 深度値用ヒーププロパティ
+	D3D12_HEAP_PROPERTIES depthHeapProp = {};
+	depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT; // DEFAULT なのであとは UNKNOWN でよい
+	depthHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	depthHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+	// このクリアバリューが重要な意味を持つ
+	D3D12_CLEAR_VALUE depthClearValue = {};
+	depthClearValue.DepthStencil.Depth = 1.0f; // 深さ 1.0f (最大値）でクリア
+	depthClearValue.Format = DXGI_FORMAT_D32_FLOAT; // 32ビットfloat値としてクリア
+
+	result = _dev->CreateCommittedResource(
+		&depthHeapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&depthResDesc,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE, // 深度値書き込みに使用
+		&depthClearValue,
+		IID_PPV_ARGS(&_depthBuffer)
+	);
+	if (FAILED(result)) return -1;
+
+	// 深度バッファービューの作成
+	// 深度のためのディスクリプタヒープ
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {}; // 深度に使う
+	dsvHeapDesc.NumDescriptors = 1; // 深度ビューは1つ
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV; // デプスステンシルビューとして使う
+	result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap));
+	if (FAILED(result)) return -1;
+
+	// デプス深度ビュー作成
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT; // 深度値に32ビット使用
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D; // 2D テクスチャ
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE; // フラグは特になし
+
+	_dev->CreateDepthStencilView(
+		_depthBuffer.Get(),
+		&dsvDesc,
+		dsvHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+
 	// レンダーターゲットビュー
 	// ディスクリプタヒープ
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
@@ -183,10 +234,12 @@ void Dx12Wrapper::BeginDraw()
 
 	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
 	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
+	auto dsvH = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+	_cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvH);
 
 	float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+	_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// ビューポートとシザー矩形
 	_cmdList->RSSetViewports(1, &_viewport);

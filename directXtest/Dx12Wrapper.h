@@ -17,8 +17,11 @@ private:
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> _cmdList;
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> _cmdQueue;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeaps;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap;
+
 
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _backBuffers;
+    Microsoft::WRL::ComPtr<ID3D12Resource> _depthBuffer;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
     UINT64 _fenceVal = 0;

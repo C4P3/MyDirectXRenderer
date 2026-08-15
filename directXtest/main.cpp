@@ -21,6 +21,7 @@
 
 #ifdef _DEBUG
 #include <iostream>
+#include <string_view>
 #endif
 
 using namespace std;
@@ -33,6 +34,23 @@ struct Vertex
 	XMFLOAT3 pos;
 	XMFLOAT2 uv;
 };
+
+struct PMDHeader
+{
+	float version;		// 例 : 00 00 80 3F == 1.00
+	char model_name[20];// モデル名
+	char comment[256];	// モデルコメント
+};
+
+struct PMDVertex
+{
+	XMFLOAT3 pos;				// 頂点座標		: 12バイト
+	XMFLOAT3 normal;			// 法線ベクトル	: 12バイト
+	XMFLOAT2 uv;				// uv座標		: 8バイト
+	unsigned short boneNo[2];	// ボーン番号	: 4バイト
+	unsigned char boneWeight;	// ボーン影響度 : 1バイト
+	unsigned char edgeFlg;		// 輪郭線フラグ	: 1バイト
+}; // 合計 38 バイト
 
 class BasicRenderer
 {
@@ -191,13 +209,33 @@ public:
 
 		// 頂点レイアウト
 		D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-			{// 座標情報
+			{// 12バイト
 				"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
 				D3D12_APPEND_ALIGNED_ELEMENT,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 			},
-			{// uv
+			{// 12バイト
+				"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT,
+				0, D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			},
+			{// 8バイト
 				"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
+				0, D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			},
+			{// 4バイト
+				"BONE_NO", 0, DXGI_FORMAT_R16G16_UINT,
+				0, D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			},
+			{// 1バイト
+				"WEIGHT", 0, DXGI_FORMAT_R8_UINT,
+				0, D3D12_APPEND_ALIGNED_ELEMENT,
+				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+			},
+			{// 1バイト
+				"EDGE_FLG", 0, DXGI_FORMAT_R8_UINT,
 				0, D3D12_APPEND_ALIGNED_ELEMENT,
 				D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 			}
@@ -229,7 +267,7 @@ public:
 		const D3D12_VERTEX_BUFFER_VIEW& vbView,
 		const D3D12_INDEX_BUFFER_VIEW& ibView,
 		ID3D12DescriptorHeap* descHeap,
-		int indexCount)
+		int indicesNum, int vertNum)
 	{
 		auto cmdList = dx12.CommandList();
 
@@ -248,12 +286,13 @@ public:
 		//cmdList->SetGraphicsRootDescriptorTable(1, handle); // [1] CBV
 
 		// ジオメトリのセットと描画
+		//cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
 		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		cmdList->IASetVertexBuffers(0, 1, &vbView);
 		cmdList->IASetIndexBuffer(&ibView);
 
-		// インデックス数を指定して描画
-		cmdList->DrawIndexedInstanced(indexCount, 1, 0, 0, 0);
+		//cmdList->DrawInstanced(vertNum, 1, 0, 0);
+		cmdList->DrawIndexedInstanced(indicesNum, 1, 0, 0, 0);
 	}
 };
 
@@ -288,35 +327,60 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #pragma endregion 3. パイプラインの構築
 
 #pragma region 4. アセットの作成とデータ転送
+	// PMD
+	char signature[4] = {}; // 先頭3バイトは文字列"pmd"
+	PMDHeader pmdheader;
+	unsigned int vertNum; // 頂点数
+	constexpr size_t pmdvertex_size = 38;	// 1 頂点あたりのサイズ
+	std::vector<unsigned char> vertices;
+	std::vector<unsigned short> indices;
+	unsigned int indicesNum; // インデックス数
 
-	// 頂点バッファー
-	Vertex vertices[] =
-	{
-		{{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},
-		{{-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f}},
-		{{ 1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},
-		{{ 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f}}
-	};
-	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(sizeof(vertices), vertices);
+	FILE *fp; 
+	fopen_s(&fp, "Model/初音ミク.pmd", "rb");
+	if (fp == nullptr) return -1;
+	fread(signature, 3, 1, fp);
+	fread(&pmdheader, sizeof(pmdheader), 1, fp);
+
+	fread(&vertNum, sizeof(vertNum), 1, fp); // 頂点数はヘッダーデータ直後
+	vertices.resize(vertNum * pmdvertex_size); // バッファーの確保
+	fread(vertices.data(), vertices.size(), 1, fp);
+
+	fread(&indicesNum, sizeof(indicesNum), 1, fp);
+	indices.resize(indicesNum);
+	fread(indices.data(), indices.size() * sizeof(unsigned short), 1, fp);
+	fclose(fp);
+
+	std::vector<unsigned char> vb(vertNum * 40);
+	for (unsigned i = 0; i < vertNum; ++i)
+		memcpy(&vb[i * 40], &vertices[i * 38], 38);   // 残り2バイトはパディング
+	vertices.swap(vb);
+
+	
+	
+	std::cout << signature << '\n';
+	std::cout << pmdheader.version << '\n';
+	std::cout << pmdheader.model_name << '\n';
+	std::cout << pmdheader.comment << '\n';
+	std::cout << vertNum << '\n';
+	std::cout << indicesNum << '\n';
+
+
+
+	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(vertices.size(), vertices.data());
+	ComPtr<ID3D12Resource> idxBuff = dx12.CreateBuffer(indices.size() * sizeof(unsigned short), indices.data());
 
 	// 頂点バッファービュー
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	vbView.BufferLocation = vertBuff->GetGPUVirtualAddress(); // バッファーの仮想アドレス
-	vbView.SizeInBytes = sizeof(vertices);	// 全バイト数
-	vbView.StrideInBytes = sizeof(vertices[0]);	// 一頂点辺りのバイト数
-
-	// インデックスバッファー
-	unsigned short indices[] = {
-		0, 1, 2,
-		2, 1, 3
-	};
-	ComPtr<ID3D12Resource> idxBuff = dx12.CreateBuffer(sizeof(indices), indices);
+	vbView.SizeInBytes = vertices.size();	// 全バイト数
+	vbView.StrideInBytes = 40;	// 一頂点辺りのバイト数
 
 	// インデックスバッファービューを作成
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
 	ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
 	ibView.Format = DXGI_FORMAT_R16_UINT;
-	ibView.SizeInBytes = sizeof(indices);
+	ibView.SizeInBytes = indices.size() * sizeof(indices[0]);
 
 
 	XMMATRIX matrix = XMMatrixIdentity();
@@ -326,8 +390,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	auto worldMat = XMMatrixRotationY(XM_PIDIV4);
 
 	// ビュー行列
-	XMFLOAT3 eye(0, 0, -5);
-	XMFLOAT3 target(0, 0, 0);
+	XMFLOAT3 eye(0, 10, -15);
+	XMFLOAT3 target(0, 10, 0);
 	XMFLOAT3 up(0, 1, 0);
 	auto viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 
@@ -336,13 +400,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		XM_PIDIV2,
 		static_cast<float>(window_width) / static_cast<float>(window_height),
 		1.0f, // 近いクリップ面距離
-		10.0f // 遠いクリップ面距離
+		100.0f // 遠いクリップ面距離
 	);
-	
-	/*matrix.r[0].m128_f32[0] = 2.0f / window_width;
-	matrix.r[1].m128_f32[1] = -2.0f / window_height;
-	matrix.r[3].m128_f32[0] = -1.0f;
-	matrix.r[3].m128_f32[1] = 1.0f;*/
 
 	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
 	size_t cbSize = (sizeof(matrix) + 255) & ~255; // 256バイトアライメント
@@ -430,7 +489,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			dx12.BeginDraw();
 
 			// ========= 実際の描画 =========
-			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), 6);
+			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), indicesNum, vertNum);
 
 			// ========= 描画後処理とGPU同期 =========
 			dx12.EndDraw();

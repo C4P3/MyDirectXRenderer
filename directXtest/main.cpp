@@ -42,6 +42,13 @@ struct PMDHeader
 	char comment[256];	// モデルコメント
 };
 
+// シェーダー側に渡すための基本的な行列データ
+struct MatricesData
+{
+	XMMATRIX world;		// モデル本体を回転させたり移動させたりする行列
+	XMMATRIX viewproj;	// ビューとプロジェクション合成行列
+};
+
 #pragma pack(push, 1) // 1バイト境界に設定（パディングを無効化）
 struct PMDVertex_Raw
 {
@@ -434,7 +441,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
-	size_t cbSize = (sizeof(matrix) + 255) & ~255; // 256バイトアライメント
+	size_t cbSize = (sizeof(MatricesData) + 255) & ~255; // 256バイトアライメント
 
 	// 定数バッファ
 	//ComPtr<ID3D12Resource> constBuff = dx12.CreateBuffer(cbSize, &matrix, sizeof(matrix));
@@ -451,16 +458,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		IID_PPV_ARGS(&constBuff)
 	);
 	if (FAILED(hr)) return -1;
-	XMMATRIX* mappedPtr = nullptr;
+	MatricesData* mapMatrix = nullptr;
 	if (&matrix != nullptr) {
 		// CPUから読み込まないことを明確にするため Range(0, 0) を指定
 		CD3DX12_RANGE readRange(0, 0);
-		hr = constBuff->Map(0, &readRange, (void**)&mappedPtr);
+		hr = constBuff->Map(0, &readRange, (void**)&mapMatrix);
 
 		if (SUCCEEDED(hr)) {
 			// dataSize が指定されていなければ sizeInBytes を使用
 			size_t copySize = (sizeof(matrix) > 0) ? sizeof(matrix) : cbSize;
-			std::memcpy(mappedPtr, &matrix, copySize);
+			std::memcpy(mapMatrix, &matrix, copySize);
 
 			// 書き込んだ範囲を指定して Unmap (nullptr でも可)
 			//CD3DX12_RANGE writeRange(0, copySize);
@@ -512,9 +519,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		}
 		else
 		{
-			angle += 0.1f;
+			angle += 0.03f;
 			worldMat = XMMatrixRotationY(angle);
-			*mappedPtr = worldMat * viewMat * projMat;
+			mapMatrix->world = worldMat;
+			mapMatrix->viewproj = viewMat * projMat;
 			// ========= 描画前処理 =========
 			dx12.BeginDraw();
 

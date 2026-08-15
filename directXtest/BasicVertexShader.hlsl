@@ -8,8 +8,9 @@ min16uint weight : WEIGHT
 )
 {
     Output output; // ピクセルシェーダーに渡す値
-    output.svpos = mul(mat, pos);
+    output.svpos = mul(mul(viewproj, world), pos); // シェーダーでは列優先
+    normal.w = 0; // 平行移動成分を向こうにする
+    output.normal = mul(world, normal); // 法線にもワールド変換を行う
     output.uv = uv;
-    output.normal = normal;
 	return output;
 }

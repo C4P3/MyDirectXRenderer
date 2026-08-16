@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <span>
+#include <map>
 
 #include "d3dx12.h"
 #include "Application.h"
@@ -36,7 +37,6 @@ using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
 namespace fs = std::filesystem;
-
 
 // 頂点データ構造体
 struct Vertex
@@ -216,21 +216,37 @@ ComPtr<ID3D12Resource> CreateTextureFromData(
 }
 
 ComPtr<ID3D12Resource> LoadTextureFromFile(
-	ID3D12Device* dev, 
-	const std::string& texPath
+	ID3D12Device* dev,
+	const std::string& filePath // std::string で受け取る
 )
 {
-	// WIC テクスチャのロード
+	// 1. 拡張子を取得して小文字化
+	std::string ext = GetLowerExt(filePath);
+
+	// 2. ワイド文字列に変換
+	std::wstring wFilePath = GetWideStringFromString(filePath);
+
 	TexMetadata metadata = {};
 	ScratchImage scratchImg = {};
+	HRESULT hr = S_OK;
 
-	auto result = LoadFromWICFile(
-		GetWideStringFromString(texPath).c_str(),
-		WIC_FLAGS_NONE,
-		&metadata,
-		scratchImg
-	);
-	if (FAILED(result)) return nullptr;
+	// 3. 拡張子に応じて DirectXTex のロード関数を呼び分ける（ここに処理を隠蔽！）
+	if (ext == ".dds") {
+		hr = LoadFromDDSFile(wFilePath.c_str(), DDS_FLAGS_NONE, &metadata, scratchImg);
+	}
+	else if (ext == ".tga") {
+		hr = LoadFromTGAFile(wFilePath.c_str(), &metadata, scratchImg);
+	}
+	else if (ext == ".sph" || ext == ".spa" || ext == ".bmp" || ext == ".png" || ext == ".jpg") {
+		hr = LoadFromWICFile(wFilePath.c_str(), WIC_FLAGS_NONE, &metadata, scratchImg);
+	}
+	else {
+		// 未対応のフォーマット
+		return nullptr;
+	}
+
+	// 読み込み失敗時は nullptr を返す
+	if (FAILED(hr)) return nullptr;
 
 	auto img = scratchImg.GetImage(0, 0, 0); // 生データ抽出
 
@@ -582,7 +598,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	std::vector<PMDMaterial_Raw> rawPmdMaterials;
 	std::vector<Material> materials;
 	
-	std::string strModelPath = "Model/初音ミクmetal.pmd";
+	std::string strModelPath = "Model/初音ミク.pmd";
 	FILE* fp;
 	fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) return -1;

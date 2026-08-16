@@ -339,7 +339,7 @@ public:
 		const D3D12_INDEX_BUFFER_VIEW& ibView,
 		ID3D12DescriptorHeap* descHeap,
 		ID3D12DescriptorHeap* matDescHeap,
-		int indicesNum, int vertNum)
+		int indicesNum, int vertNum, const std::vector<Material>& materials)
 	{
 		auto cmdList = dx12.CommandList();
 
@@ -352,19 +352,21 @@ public:
 		cmdList->SetDescriptorHeaps(1, ppHeaps);
 		cmdList->SetGraphicsRootDescriptorTable(0, descHeap->GetGPUDescriptorHandleForHeapStart());
 
-		ID3D12DescriptorHeap* ppHeaps2[] = { matDescHeap };
-		cmdList->SetDescriptorHeaps(1, ppHeaps2);
-		cmdList->SetGraphicsRootDescriptorTable(1, matDescHeap->GetGPUDescriptorHandleForHeapStart());
-
-
 		// ジオメトリのセットと描画
-		//cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
 		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		cmdList->IASetVertexBuffers(0, 1, &vbView);
 		cmdList->IASetIndexBuffer(&ibView);
 
-		//cmdList->DrawInstanced(vertNum, 1, 0, 0);
-		cmdList->DrawIndexedInstanced(indicesNum, 1, 0, 0, 0);
+		auto materialH = matDescHeap->GetGPUDescriptorHandleForHeapStart();
+		unsigned int idxOffset = 0;
+		for (auto& m : materials) {
+			cmdList->SetGraphicsRootDescriptorTable(1, materialH);
+			cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
+			
+			// ヒープポインターとインデックスを次に進める
+			materialH.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+			idxOffset += m.indicesNum;
+		}
 	}
 };
 
@@ -621,7 +623,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			dx12.BeginDraw();
 
 			// ========= 実際の描画 =========
-			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), materialDescHeap.Get(), indicesNum, vertNum);
+			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), materialDescHeap.Get(), indicesNum, vertNum, materials);
 
 			// ========= 描画後処理とGPU同期 =========
 			dx12.EndDraw();

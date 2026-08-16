@@ -166,34 +166,29 @@ public:
 
 		// ルートシグネチャの作成
 		// ディスクリプタレンジ
-		D3D12_DESCRIPTOR_RANGE descTblRange[3] = {};
-		// [0] t0 テクスチャ      … basicDescHeap の 0 番
-		// [1] b0 座標変換        … basicDescHeap の 1 番
-		// [2] b1 マテリアル      … materialDescHeap
+		D3D12_DESCRIPTOR_RANGE descTblRange[2] = {};
+		// [0] b0 座標変換        … basicDescHeap の 1 番
+		// [1] b1 マテリアル      … materialDescHeap
 
-		// テクスチャ用レジスター
-		descTblRange[0].NumDescriptors = 1; // テクスチャ１つ
-		descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // 種別はテクスチャ
+		
+		// 定数用レジスター
+		descTblRange[0].NumDescriptors = 1; // 定数1つ
+		descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
 		descTblRange[0].BaseShaderRegister = 0; // 0番スロットから
 		descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		// 定数用レジスター
-		descTblRange[1].NumDescriptors = 1; // 定数1つ
-		descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
-		descTblRange[1].BaseShaderRegister = 0; // 0番スロットから
-		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 		// マテリアル
-		descTblRange[2].NumDescriptors = 1; // ディスクリプタヒープは複数だが一度に使うのは1つ
-		descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
-		descTblRange[2].BaseShaderRegister = 1; // 1番スロットから
-		descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		descTblRange[1].NumDescriptors = 1; // ディスクリプタヒープは複数だが一度に使うのは1つ
+		descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
+		descTblRange[1].BaseShaderRegister = 1; // 1番スロットから
+		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		D3D12_ROOT_PARAMETER rootparam[2] = {};
 		rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		rootparam[0].DescriptorTable.pDescriptorRanges = &descTblRange[0];
-		rootparam[0].DescriptorTable.NumDescriptorRanges = 2; // SRV+CBV をまとめて1テーブル
+		rootparam[0].DescriptorTable.NumDescriptorRanges = 1;
 		rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootparam[1].DescriptorTable.pDescriptorRanges = &descTblRange[2];
+		rootparam[1].DescriptorTable.pDescriptorRanges = &descTblRange[1];
 		rootparam[1].DescriptorTable.NumDescriptorRanges = 1;
 		rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;//全てのシェーダーから見える
 
@@ -575,13 +570,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	}
 
 	// テクスチャのロード（SRVはまだ作らない）
-	ComPtr<ID3D12Resource> texbuff = dx12.CreateTextureFromFile(L"img/tsukimi_jugoya.png");
+	//ComPtr<ID3D12Resource> texbuff = dx12.CreateTextureFromFile(L"img/tsukimi_jugoya.png");
 
 	// 2. 定数バッファビューをディスクリプタヒープに追加する
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = 2; // SRV 1 つとCBV 1つ
+	descHeapDesc.NumDescriptors = 1; // CBV 1つ
 	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
 	ComPtr<ID3D12DescriptorHeap> basicDescHeap = nullptr;
@@ -592,19 +587,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
 
 	// [0] SRV
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	/*D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Format = texbuff->GetDesc().Format;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
-	dx12.Device()->CreateShaderResourceView(texbuff.Get(), &srvDesc, basicHeapHandle);
+	dx12.Device()->CreateShaderResourceView(texbuff.Get(), &srvDesc, basicHeapHandle);*/
 
 	// [1] CBV
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 	cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
 	cbvDesc.SizeInBytes = static_cast<UINT>(constBuff->GetDesc().Width);
 	// 次の場所に移動
-	basicHeapHandle.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	//basicHeapHandle.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	dx12.Device()->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
 
 	// 4. シェーダから利用する

@@ -1,4 +1,7 @@
 #include "Application.h"
+#include "Dx12Wrapper.h"
+#include "PMDRenderer.h"
+#include "PMDActor.h"
 #include <tchar.h>
 
 static LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)

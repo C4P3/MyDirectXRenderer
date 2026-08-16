@@ -1,4 +1,6 @@
 
+#define MATERIAL_MULTIPLIER 4
+
 #include <Windows.h>
 #include <tchar.h> // _T マクロ用
 #include <d3d12.h>
@@ -9,6 +11,11 @@
 #include <DirectXMath.h>
 #include <d3dcompiler.h>
 #include <DirectXTex.h>
+#include <sstream>
+#include <filesystem>
+#include <algorithm>
+#include <span>
+
 #include "d3dx12.h"
 #include "Application.h"
 #include "Dx12Wrapper.h"
@@ -27,6 +34,9 @@
 using namespace std;
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
+
+namespace fs = std::filesystem;
+
 
 // 頂点データ構造体
 struct Vertex
@@ -162,7 +172,51 @@ std::wstring GetWideStringFromString(const std::string& str)
 	return wstr;
 }
 
-ComPtr<ID3D12Resource> LoadTextureFromFile(std::string& texPath, ID3D12Device* _dev)
+// 拡張子を小文字で取得するヘルパー（大文字小文字の表記揺れ対策）
+std::string GetLowerExt(const std::string& pathStr) {
+	std::string ext = fs::path(pathStr).extension().string();
+	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+	return ext;
+}
+
+ComPtr<ID3D12Resource> CreateTextureFromData(
+	ID3D12Device* dev,
+	UINT64 width,
+	UINT height,
+	DXGI_FORMAT format,
+	const void* pixels,
+	size_t rowPitch,
+	size_t slicePitch
+)
+{
+	D3D12_HEAP_PROPERTIES texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
+
+	D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+		format, width, height, 1, 1 // arraySize = 1, mipLevels = 1
+	);
+
+	// バッファー作成
+	ComPtr<ID3D12Resource> texBuff = nullptr;
+	auto result = dev->CreateCommittedResource(
+		&texHeapProp, D3D12_HEAP_FLAG_NONE, &resDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&texBuff)
+	);
+	if (FAILED(result)) return nullptr;
+
+	result = texBuff->WriteToSubresource(
+		0, nullptr, pixels,
+		static_cast<UINT>(rowPitch),
+		static_cast<UINT>(slicePitch)
+	);
+	if (FAILED(result)) return nullptr;
+
+	return texBuff;
+}
+
+ComPtr<ID3D12Resource> LoadTextureFromFile(
+	ID3D12Device* dev, 
+	const std::string& texPath
+)
 {
 	// WIC テクスチャのロード
 	TexMetadata metadata = {};
@@ -178,77 +232,40 @@ ComPtr<ID3D12Resource> LoadTextureFromFile(std::string& texPath, ID3D12Device* _
 
 	auto img = scratchImg.GetImage(0, 0, 0); // 生データ抽出
 
-	// WriteToSubResource で転送する用のヒープ設定
-	D3D12_HEAP_PROPERTIES texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0, 0, 0);//単一アダプタのため 0
-	D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC(
-		static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension),
-		0,
-		metadata.width, metadata.height,
-		metadata.arraySize, 
-		metadata.mipLevels,
+	// リソース生成と転送を共通関数に委譲
+	return CreateTextureFromData(
+		dev,
+		metadata.width,
+		metadata.height,
 		metadata.format,
-		1,	// 通常テクスチャなのでアンチエイリアシングしない
-		0,	// クオリティ最低
-		D3D12_TEXTURE_LAYOUT_UNKNOWN,
-		D3D12_RESOURCE_FLAG_NONE
+		img->pixels,
+		img->rowPitch,
+		img->slicePitch
 	);
-
-	// バッファー作成
-	ComPtr<ID3D12Resource> texbuff = nullptr;
-	result = _dev->CreateCommittedResource(
-		&texHeapProp, D3D12_HEAP_FLAG_NONE, &resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&texbuff)
-	);
-	if (FAILED(result)) return nullptr;
-
-	result = texbuff->WriteToSubresource(
-		0,
-		nullptr,		// 全領域へコピー
-		img->pixels,	// 元データアドレス
-		img->rowPitch,	// 1ラインサイズ
-		img->slicePitch	// 全サイズ
-	);
-	if (FAILED(result)) return nullptr;
-
-	return texbuff;
 }
 
-ComPtr<ID3D12Resource> CreateWhiteTexture(ID3D12Device* _dev)
+ComPtr<ID3D12Resource> CreateSolidColorTexture(
+	ID3D12Device* dev, 
+	uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255
+)
 {
-	D3D12_HEAP_PROPERTIES texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0, 0, 0);//単一アダプタのため 0
-	D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC(
-		D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-		0,
-		4, 4,
-		1,
-		1,
+	uint8_t data[4 * 4 * 4];
+	for (size_t i = 0; i < sizeof(data); i += 4) {
+		data[i + 0] = r;
+		data[i + 1] = g;
+		data[i + 2] = b;
+		data[i + 3] = a;
+	}
+
+	return CreateTextureFromData(
+		dev,
+		4,
+		4,
 		DXGI_FORMAT_R8G8B8A8_UNORM,
-		1,	// 通常テクスチャなのでアンチエイリアシングしない
-		0,	// クオリティ最低
-		D3D12_TEXTURE_LAYOUT_UNKNOWN,
-		D3D12_RESOURCE_FLAG_NONE
+		data,
+		4 * 4,	// 1ラインサイズ
+		sizeof(data)	// 全サイズ
 	);
-
-	// バッファー作成
-	ComPtr<ID3D12Resource> whiteBuff = nullptr;
-	auto result = _dev->CreateCommittedResource(
-		&texHeapProp, D3D12_HEAP_FLAG_NONE, &resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&whiteBuff)
-	);
-	if (FAILED(result)) return nullptr;
-
-	std::vector<unsigned char> data(4 * 4 * 4);
-	std::fill(data.begin(), data.end(), 0xff); // 全部で255で埋める
-	result = whiteBuff->WriteToSubresource(
-		0,
-		nullptr,		// 全領域へコピー
-		data.data(),
-		4*4,	// 1ラインサイズ
-		data.size()	// 全サイズ
-	);
-	if (FAILED(result)) return nullptr;
-
-	return whiteBuff;
 }
 
 class BasicRenderer
@@ -320,7 +337,7 @@ public:
 		descTblRange[1].BaseShaderRegister = 1; // 1番スロットから
 		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 		// テクスチャ（マテリアルとペア）
-		descTblRange[2].NumDescriptors = 1; // テクスチャ1つ
+		descTblRange[2].NumDescriptors = MATERIAL_MULTIPLIER - 1; // テクスチャ2つ(基本とsphとspa)
 		descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // 種別はテクスチャ
 		descTblRange[2].BaseShaderRegister = 0; // 0番スロットから
 		descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -481,7 +498,6 @@ public:
 		const D3D12_VERTEX_BUFFER_VIEW& vbView,
 		const D3D12_INDEX_BUFFER_VIEW& ibView,
 		ID3D12DescriptorHeap* descHeap,
-		ID3D12DescriptorHeap* matDescHeap,
 		int indicesNum, int vertNum, const std::vector<Material>& materials)
 	{
 		auto cmdList = dx12.CommandList();
@@ -492,23 +508,26 @@ public:
 
 		// テクスチャCBV（ヒープ）のセット
 		ID3D12DescriptorHeap* ppHeaps[] = { descHeap };
+		auto descHeapH = descHeap->GetGPUDescriptorHandleForHeapStart();
 		cmdList->SetDescriptorHeaps(1, ppHeaps);
-		cmdList->SetGraphicsRootDescriptorTable(0, descHeap->GetGPUDescriptorHandleForHeapStart());
+		cmdList->SetGraphicsRootDescriptorTable(0, descHeapH);
+		// 進める
+		descHeapH.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 		// ジオメトリのセットと描画
 		cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		cmdList->IASetVertexBuffers(0, 1, &vbView);
 		cmdList->IASetIndexBuffer(&ibView);
 
-		auto materialH = matDescHeap->GetGPUDescriptorHandleForHeapStart();
-		auto cbvsrvIncSize = dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 2; // 2倍
+		// 4倍
+		auto cbvsrvIncSize = dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * MATERIAL_MULTIPLIER;
 		unsigned int idxOffset = 0;
 		for (auto& m : materials) {
-			cmdList->SetGraphicsRootDescriptorTable(1, materialH);
+			cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);
 			cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
 			
 			// ヒープポインターとインデックスを次に進める
-			materialH.ptr += cbvsrvIncSize;
+			descHeapH.ptr += cbvsrvIncSize;
 			idxOffset += m.indicesNum;
 		}
 	}
@@ -560,8 +579,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	unsigned int materialNum; // マテリアル数
 	std::vector<PMDMaterial_Raw> rawPmdMaterials;
 	std::vector<Material> materials;
-
-	std::string strModelPath = "Model/初音ミク.pmd";
+	
+	std::string strModelPath = "Model/巡音ルカ.pmd";
 	FILE* fp;
 	fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) return -1;
@@ -599,90 +618,37 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		//materials[i].additional
 	}
 
-	std::vector<ComPtr<ID3D12Resource>> textureResources(rawPmdMaterials.size());
-	for (int i = 0; i < rawPmdMaterials.size(); ++i)
-	{
-		if (strlen(rawPmdMaterials[i].texFilePath) == 0)
-		{
-			textureResources[i] = nullptr;
-		}
-		// モデルとテクスチャパスからアプリケーションからのテクスチャパスを得る
-		auto texFilePath = GetTexturePathFromModelAndTexPath(
-			strModelPath, rawPmdMaterials[i].texFilePath
-		);
-		textureResources[i] = LoadTextureFromFile(texFilePath, dx12.Device());
-	}
-
 	// テクスチャパス
+	std::vector<ComPtr<ID3D12Resource>> textureResources(materialNum);
+	std::vector<ComPtr<ID3D12Resource>> sphResources(materialNum);
+	std::vector<ComPtr<ID3D12Resource>> spaResources(materialNum);
+	// --- ループ内の処理 ---
+	for (size_t i = 0; i < rawPmdMaterials.size(); ++i)
+	{
+		if (strlen(rawPmdMaterials[i].texFilePath) == 0) continue;
 
+		// '*' で文字列を分割しながら順次処理
+		std::stringstream ss(rawPmdMaterials[i].texFilePath);
+		std::string fileName;
 
-	// マテリアル用バッファー
-	auto materialBuffSize = sizeof(MaterialForHlsl);
-	materialBuffSize = (materialBuffSize + 0xff) & ~0xff; // 複数のマテリアルを切り替えるために256アライメントをマテリアルごとに行う
-	// 無駄な領域を作らない方法として DrawIndexedInstancedを呼ぶ旅に CopyBufferRegion で転送する、まとめて1Dテクスチャデータとして転送してマテリアルIDで参照位置を変える、などがある
-	ComPtr<ID3D12Resource> materialBuff = nullptr;
-	auto heappropmat = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-	auto resdescmat = CD3DX12_RESOURCE_DESC::Buffer(materialBuffSize * materialNum); // もったいないが今回はこうする
-	result = dx12.Device()->CreateCommittedResource(
-		&heappropmat,
-		D3D12_HEAP_FLAG_NONE,
-		&resdescmat,
-		D3D12_RESOURCE_STATE_GENERIC_READ,
-		nullptr,
-		IID_PPV_ARGS(&materialBuff)
-	);
-	if (FAILED(result)) return -1;
-	// マップマテリアルにコピー
-	char* mapMaterial = nullptr;
-	result = materialBuff->Map(0, nullptr, (void**)&mapMaterial);
-	for (auto& m : materials) {// 強引なキャストだが今はこうする
-		*((MaterialForHlsl*)mapMaterial) = m.material; // データコピー
-		mapMaterial += materialBuffSize; // 次のアライメント位置まで進める（256の倍数）
-	}
-	materialBuff->Unmap(0, nullptr);
+		while (std::getline(ss, fileName, '*'))
+		{
+			if (fileName.empty()) continue;
 
-	// マテリアル用ディスクリプタヒープ
-	ComPtr<ID3D12DescriptorHeap> materialDescHeap = nullptr;
-	D3D12_DESCRIPTOR_HEAP_DESC matDescHeapDesc = {};
-	matDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	matDescHeapDesc.NodeMask = 0;
-	matDescHeapDesc.NumDescriptors = materialNum * 2; // マテリアル数x2(SRVとCBV)
-	matDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	result = dx12.Device()->CreateDescriptorHeap(&matDescHeapDesc, IID_PPV_ARGS(&materialDescHeap));
+			auto ext = GetLowerExt(fileName);
+			auto fullPath = GetTexturePathFromModelAndTexPath(strModelPath, fileName.c_str());
 
-	// ビューの作成
-	D3D12_SHADER_RESOURCE_VIEW_DESC matSRVDesc = {};
-	matSRVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // デフォルト
-	matSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	matSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	matSRVDesc.Texture2D.MipLevels = 1;	// みっぷマップは使用しないので1
-
-	D3D12_CONSTANT_BUFFER_VIEW_DESC matCBVDesc = {};
-	matCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // バッファーアドレス
-	matCBVDesc.SizeInBytes = materialBuffSize; // マテリアルの 256 アライメントサイズ
-	
-	auto matDescHeapH = materialDescHeap->GetCPUDescriptorHandleForHeapStart();
-	auto inc = dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	ComPtr<ID3D12Resource> whiteTex = CreateWhiteTexture(dx12.Device());
-	for (int i = 0; i < materialNum; ++i) {
-		// マテリアル用定数バッファービュー
-		dx12.Device()->CreateConstantBufferView(&matCBVDesc, matDescHeapH);
-		
-		matDescHeapH.ptr += inc;
-		matCBVDesc.BufferLocation += materialBuffSize;
-
-		// シェーダーリソースビュー
-		if (textureResources[i] != nullptr) {
-			matSRVDesc.Format = textureResources[i]->GetDesc().Format;
-			dx12.Device()->CreateShaderResourceView(textureResources[i].Get(), &matSRVDesc, matDescHeapH);
+			// 拡張子に応じて格納先を振り分け
+			if (ext == ".sph") {
+				sphResources[i] = LoadTextureFromFile(dx12.Device(), fullPath);
+			}
+			else if (ext == ".spa") {
+				spaResources[i] = LoadTextureFromFile(dx12.Device(), fullPath);
+			}
+			else {
+				textureResources[i] = LoadTextureFromFile(dx12.Device(), fullPath);
+			}
 		}
-		else {
-			matSRVDesc.Format = whiteTex->GetDesc().Format;
-			dx12.Device()->CreateShaderResourceView(whiteTex.Get(), &matSRVDesc, matDescHeapH);
-		}
-
-
-		matDescHeapH.ptr += inc;
 	}
 
 	ComPtr<ID3D12Resource> vertBuff = dx12.CreateBuffer(vertices.size() * vert_gpu_size, vertices.data());
@@ -708,7 +674,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	auto worldMat = XMMatrixRotationY(XM_PIDIV4);
 
 	// ビュー行列
-	XMFLOAT3 eye(0, 10, -15);
+	XMFLOAT3 eye(0, 15, -15);
 	XMFLOAT3 target(0, 10, 0);
 	XMFLOAT3 up(0, 1, 0);
 	auto viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
@@ -725,7 +691,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	size_t cbSize = (sizeof(MatricesData) + 255) & ~255; // 256バイトアライメント
 
 	// 定数バッファ
-	//ComPtr<ID3D12Resource> constBuff = dx12.CreateBuffer(cbSize, &matrix, sizeof(matrix));
 	ComPtr<ID3D12Resource> constBuff = nullptr;
 	auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(cbSize);
@@ -756,14 +721,47 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		}
 	}
 
-	// テクスチャのロード（SRVはまだ作らない）
-	//ComPtr<ID3D12Resource> texbuff = dx12.CreateTextureFromFile(L"img/tsukimi_jugoya.png");
+	// マテリアル用バッファー
+	auto materialBuffSize = sizeof(MaterialForHlsl);
+	materialBuffSize = (materialBuffSize + 0xff) & ~0xff; // 複数のマテリアルを切り替えるために256アライメントをマテリアルごとに行う
+	// 無駄な領域を作らない方法として DrawIndexedInstancedを呼ぶ旅に CopyBufferRegion で転送する、まとめて1Dテクスチャデータとして転送してマテリアルIDで参照位置を変える、などがある
+	ComPtr<ID3D12Resource> materialBuff = nullptr;
+	auto heappropmat = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+	auto resdescmat = CD3DX12_RESOURCE_DESC::Buffer(materialBuffSize * materialNum); // もったいないが今回はこうする
+	result = dx12.Device()->CreateCommittedResource(
+		&heappropmat,
+		D3D12_HEAP_FLAG_NONE,
+		&resdescmat,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&materialBuff)
+	);
+	if (FAILED(result)) return -1;
+	// マップマテリアルにコピー
+	char* mapMaterial = nullptr;
+	result = materialBuff->Map(0, nullptr, (void**)&mapMaterial);
+	for (auto& m : materials) {// 強引なキャストだが今はこうする
+		*((MaterialForHlsl*)mapMaterial) = m.material; // データコピー
+		mapMaterial += materialBuffSize; // 次のアライメント位置まで進める（256の倍数）
+	}
+	materialBuff->Unmap(0, nullptr);
 
-	// 2. 定数バッファビューをディスクリプタヒープに追加する
+	// ビューの作成
+	D3D12_SHADER_RESOURCE_VIEW_DESC matSRVDesc = {};
+	matSRVDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; // デフォルト
+	matSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	matSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	matSRVDesc.Texture2D.MipLevels = 1;	// みっぷマップは使用しないので1
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC matCBVDesc = {};
+	matCBVDesc.BufferLocation = materialBuff->GetGPUVirtualAddress(); // バッファーアドレス
+	matCBVDesc.SizeInBytes = materialBuffSize; // マテリアルの 256 アライメントサイズ
+	
+	// ディスクリプタヒープに追加する
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = 1; // CBV 1つ
+	descHeapDesc.NumDescriptors = 1 + materialNum * MATERIAL_MULTIPLIER; // 先頭に WVP 用 CBV + マテリアル数4つ分
 	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
 	ComPtr<ID3D12DescriptorHeap> basicDescHeap = nullptr;
@@ -773,23 +771,61 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	// ディスクリプタの先頭ハンドルを取得しておく
 	auto basicHeapHandle = basicDescHeap->GetCPUDescriptorHandleForHeapStart();
 
-	// [0] SRV
-	/*D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = texbuff->GetDesc().Format;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	dx12.Device()->CreateShaderResourceView(texbuff.Get(), &srvDesc, basicHeapHandle);*/
-
-	// [1] CBV
+	// CBV
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 	cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
 	cbvDesc.SizeInBytes = static_cast<UINT>(constBuff->GetDesc().Width);
-	// 次の場所に移動
-	//basicHeapHandle.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	dx12.Device()->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+	// 次の場所に移動する
+	basicHeapHandle.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	// 4. シェーダから利用する
+
+	auto inc = dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	ComPtr<ID3D12Resource> whiteTex = CreateSolidColorTexture(dx12.Device(), 0xff, 0xff, 0xff);
+	ComPtr<ID3D12Resource> blackTex = CreateSolidColorTexture(dx12.Device(), 0, 0, 0);
+	for (int i = 0; i < materialNum; ++i) {
+		// マテリアル用定数バッファービュー
+		dx12.Device()->CreateConstantBufferView(&matCBVDesc, basicHeapHandle);
+		basicHeapHandle.ptr += inc;
+		matCBVDesc.BufferLocation += materialBuffSize;
+
+		// シェーダーリソースビュー
+		if (textureResources[i] == nullptr) 
+		{
+			matSRVDesc.Format = whiteTex->GetDesc().Format;
+			dx12.Device()->CreateShaderResourceView(whiteTex.Get(), &matSRVDesc, basicHeapHandle);
+		}
+		else
+		{
+			matSRVDesc.Format = textureResources[i]->GetDesc().Format;
+			dx12.Device()->CreateShaderResourceView(textureResources[i].Get(), &matSRVDesc, basicHeapHandle);
+		}
+		basicHeapHandle.ptr += inc;
+
+		if (sphResources[i] == nullptr)
+		{
+			matSRVDesc.Format = whiteTex->GetDesc().Format;
+			dx12.Device()->CreateShaderResourceView(whiteTex.Get(), &matSRVDesc, basicHeapHandle);
+		}
+		else
+		{
+			matSRVDesc.Format = sphResources[i]->GetDesc().Format;
+			dx12.Device()->CreateShaderResourceView(sphResources[i].Get(), &matSRVDesc, basicHeapHandle);
+		}
+		basicHeapHandle.ptr += inc;
+
+		if (spaResources[i] == nullptr)
+		{
+			matSRVDesc.Format = blackTex->GetDesc().Format;
+			dx12.Device()->CreateShaderResourceView(blackTex.Get(), &matSRVDesc, basicHeapHandle);
+		}
+		else
+		{
+			matSRVDesc.Format = spaResources[i]->GetDesc().Format;
+			dx12.Device()->CreateShaderResourceView(spaResources[i].Get(), &matSRVDesc, basicHeapHandle);
+		}
+		basicHeapHandle.ptr += inc;
+	}
 #pragma endregion region 4. アセットの作成とデータ転送
 	float angle = 0.0f;
 #pragma region 5. メインループ
@@ -808,7 +844,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			dx12.BeginDraw();
 
 			// ========= 実際の描画 =========
-			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), materialDescHeap.Get(), indicesNum, vertNum, materials);
+			renderer.Draw(dx12, vbView, ibView, basicDescHeap.Get(), indicesNum, vertNum, materials);
 
 			// ========= 描画後処理とGPU同期 =========
 			dx12.EndDraw();

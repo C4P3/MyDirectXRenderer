@@ -2,8 +2,11 @@
 struct Output
 {
     float4 svpos : SV_Position; // システム用頂点座標
-    float4 normal : NORMAL; // 法線ベクトル
+    float4 pos : POSITIONT; // 頂点座標
+    float4 normal : NORMAL0; // 法線ベクトル
+    float4 vnormal : NORMAL1;   // ビュー変換後の法線ベクトル
     float2 uv : TEXCOORD; // uv 値
+    float3 ray : VECTOR; // ベクトル
 };
 
 Texture2D<float4> tex : register(t0); // 0番スロットに設定されたテクスチャ
@@ -16,8 +19,10 @@ SamplerState smp : register(s0); // 0番スロットに設定されたサンプラ
 // 定数バッファー
 cbuffer cbuff0 : register(b0)
 {
-    matrix world; // ワールド変換行列
-    matrix viewproj; // ビュープロジェクション行列
+    matrix world;
+    matrix view;
+    matrix proj;
+    float3 eye; // 視点
 };
 
 // 定数バッファー1

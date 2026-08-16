@@ -52,11 +52,13 @@ struct PMDHeader
 	char comment[256];	// モデルコメント
 };
 
-// シェーダー側に渡すための基本的な行列データ
-struct MatricesData
+// シェーダー側に渡すための基本的な環境データ
+struct SceneMatrix
 {
-	XMMATRIX world;		// モデル本体を回転させたり移動させたりする行列
-	XMMATRIX viewproj;	// ビューとプロジェクション合成行列
+	XMMATRIX world;	
+	XMMATRIX view;
+	XMMATRIX proj;
+	XMMATRIX eye;	// 視点座標
 };
 
 // シェーダー側に投げられるマテリアルデータ
@@ -580,7 +582,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	std::vector<PMDMaterial_Raw> rawPmdMaterials;
 	std::vector<Material> materials;
 	
-	std::string strModelPath = "Model/巡音ルカ.pmd";
+	std::string strModelPath = "Model/初音ミクmetal.pmd";
 	FILE* fp;
 	fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) return -1;
@@ -688,7 +690,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	);
 
 	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
-	size_t cbSize = (sizeof(MatricesData) + 255) & ~255; // 256バイトアライメント
+	size_t cbSize = (sizeof(SceneMatrix) + 255) & ~255; // 256バイトアライメント
 
 	// 定数バッファ
 	ComPtr<ID3D12Resource> constBuff = nullptr;
@@ -704,7 +706,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		IID_PPV_ARGS(&constBuff)
 	);
 	if (FAILED(hr)) return -1;
-	MatricesData* mapMatrix = nullptr;
+	SceneMatrix* mapMatrix = nullptr;
 	if (&matrix != nullptr) {
 		// CPUから読み込まないことを明確にするため Range(0, 0) を指定
 		CD3DX12_RANGE readRange(0, 0);
@@ -839,7 +841,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			angle += 0.03f;
 			worldMat = XMMatrixRotationY(angle);
 			mapMatrix->world = worldMat;
-			mapMatrix->viewproj = viewMat * projMat;
+			mapMatrix->view = viewMat;
+			mapMatrix->proj = projMat;
 			// ========= 描画前処理 =========
 			dx12.BeginDraw();
 

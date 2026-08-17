@@ -35,7 +35,7 @@ using Microsoft::WRL::ComPtr;
 bool GregoryRenderer::Init()
 {
 	// dx12.Device() を使ってルートシグネチャやPSOを作成し、
-	// メンバ変数の _rootSignature と _pipelineState に格納します。
+	// メンバ変数の _rootSignature と _pipelineState に格納
 
 	HRESULT result;
 
@@ -136,7 +136,7 @@ bool GregoryRenderer::Init()
 	// まだアンチエイリアスを使わないため false
 	gpipeline.RasterizerState.MultisampleEnable = false;
 
-	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; // カリングしない
+	gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_BACK; // カリングは巻き順から裏
 	gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; // 中身塗りつぶし
 	gpipeline.RasterizerState.DepthClipEnable = true; // 深度方向のクリッピングは有効に
 

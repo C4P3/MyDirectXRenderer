@@ -85,46 +85,37 @@ bool Application::Init() {
 	return true;
 }
 
-// メインループ前半
-// 戻り値: メッセージを処理したか（trueなら描画せず次のループへ、falseなら描画フェーズへ）
-bool ProcessMessage(bool& quit) {
+// 溜まっているメッセージを全件処理する関数
+// 戻り値: true = 処理継続 / false = WM_QUIT を検知したため終了
+bool ProcessMessages() {
 	MSG msg = {};
-	if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+	while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		if (msg.message == WM_QUIT) {
-			quit = true;
+			return false; // 即座に終了を知らせる
 		}
-		else {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-		return true; // メッセージがあった（元のコードの if(PeekMessage) 内に相当）
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
-	return false; // メッセージなし（元のコードの else 句に相当、描画タイミング）
+	return true; // メッセージを全部捌ききったので描画へ進む
 }
 
 void Application::Run()
 {
-	bool quit = false;
-	while (!quit) {
-		if (ProcessMessage(quit)) {
-			continue;
-		}
-		else
-		{
-			// 本当は論理フレームループ
-			_scene->Update();
-			if (_pmdActor) _pmdActor->Update();
-			_gregoryActor->Update();
+	// メインループ
+	while (ProcessMessages()) {
+		// 本当は論理フレームループ
+		_scene->Update();
+		if (_pmdActor) _pmdActor->Update();
+		_gregoryActor->Update();
 
-			// 本当は描画フレームループ
-			// ========= 描画前処理 =========
-			_dx12->BeginDraw();
-			// ========= 描画処理 =========
-			_pmdRenderer->Draw(*_scene);
-			_gregoryRenderer->Draw(*_scene); // ← パイプラインを切り替えて2回目の描画
-			// ========= 描画後処理とGPU同期 =========
-			_dx12->EndDraw();
-		}
+		// 本当は描画フレームループ
+		// 描画前処理
+		_dx12->BeginDraw();
+		// 描画処理
+		_pmdRenderer->Draw(*_scene);
+		_gregoryRenderer->Draw(*_scene); // ← パイプラインを切り替えて2回目の描画
+		// 描画後処理とGPU同期
+		_dx12->EndDraw();
 	}
 }
 void Application::Terminate()

@@ -1,5 +1,5 @@
 #include "PMDActor.h"
-#define MATERIAL_MULTIPLIER 4
+#define MATERIAL_MULTIPLIER 5
 
 #include <Windows.h>
 #include <tchar.h> // _T マクロ用
@@ -127,6 +127,13 @@ ComPtr<ID3D12Resource> PMDActor::LoadTextureFromFile(
 	const std::string& filePath
 )
 {
+	// テーブル内にあればロードせずにマップ内のリソースを返す
+	auto it = _resourceTable.find(filePath);
+	if(it != _resourceTable.end())
+	{
+		return it->second;
+	}
+
 	// 1. 拡張子を取得して小文字化
 	std::string ext = GetLowerExt(filePath);
 
@@ -219,14 +226,13 @@ bool PMDActor::Load(const char* filepath) {
 		//materials[i].additional
 	}
 
-	// ファイル名パスとリソースのマップテーブル
-	std::map<std::string, ComPtr<ID3D12Resource>> _resourceTable;
 	// テクスチャパス
-	_textureResources.resize(materialNum);
-	_sphResources.resize(materialNum);
-	_spaResources.resize(materialNum);
+	vector<string> texturePath(materialNum, "");
+	vector<string> sphPath(materialNum, "");
+	vector<string> spaPath(materialNum, "");
+	vector<string> toonPath(materialNum, "");
 	// --- ループ内の処理 ---
-	for (size_t i = 0; i < rawPmdMaterials.size(); ++i)
+	for (size_t i = 0; i < materialNum; ++i)
 	{
 		if (strlen(rawPmdMaterials[i].texFilePath) == 0) continue;
 
@@ -243,15 +249,32 @@ bool PMDActor::Load(const char* filepath) {
 
 			// 拡張子に応じて格納先を振り分け
 			if (ext == ".sph") {
-				_sphResources[i] = LoadTextureFromFile(fullPath);
+				_resourceTable[fullPath] = LoadTextureFromFile(fullPath);
+				sphPath[i] = fullPath;
 			}
 			else if (ext == ".spa") {
-				_spaResources[i] = LoadTextureFromFile(fullPath);
+				_resourceTable[fullPath] = LoadTextureFromFile(fullPath);
+				spaPath[i] = fullPath;
 			}
 			else {
-				_textureResources[i] = LoadTextureFromFile(fullPath);
+				_resourceTable[fullPath] = LoadTextureFromFile(fullPath);
+				texturePath[i] = fullPath;
 			}
 		}
+	}
+
+	for (int i = 0; i < materialNum; ++i)
+	{
+		string toonFilePath = "toon/";
+
+		char toonFileName[16];
+
+		sprintf_s(toonFileName, "toon%02d.bmp", rawPmdMaterials[i].toonIdx + 1);
+
+		toonFilePath += toonFileName;
+
+		_resourceTable[toonFilePath] = LoadTextureFromFile(toonFilePath);
+		toonPath[i] = toonFilePath;
 	}
 
 	_vertBuff = _dx12.CreateBuffer(vertices.size() * vert_gpu_size, vertices.data());
@@ -353,6 +376,22 @@ bool PMDActor::Load(const char* filepath) {
 	auto inc = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	_whiteTex = _dx12.CreateSolidColorTexture(0xff, 0xff, 0xff);
 	_blackTex = _dx12.CreateSolidColorTexture(0, 0, 0);
+
+	// トゥーン用デフォルトグラデーションテクスチャ
+	{
+		std::vector<unsigned int> data(4 * 256);
+		auto it = data.begin();
+		unsigned int c = 0xff;
+		for (; it != data.end(); it += 4) {
+			auto col = (c << 0xff) | (c << 16) | (c << 8) | c;
+			std::fill(it, it + 4, col);
+			--c;
+		}
+		_grayGradationTex = _dx12.CreateTextureFromData(
+			4, 256, DXGI_FORMAT_R8G8B8A8_UNORM, 
+			data.data(), 4 * sizeof(unsigned int), sizeof(unsigned int) * data.size()
+		);
+	}
 	for (int i = 0; i < materialNum; ++i) {
 		// マテリアル用定数バッファービュー
 		_dx12.Device()->CreateConstantBufferView(&matCBVDesc, basicHeapHandle);
@@ -360,46 +399,58 @@ bool PMDActor::Load(const char* filepath) {
 		matCBVDesc.BufferLocation += materialBuffSize;
 
 		// シェーダーリソースビュー
-		if (_textureResources[i] == nullptr)
+		if (texturePath[i].empty())
 		{
 			matSRVDesc.Format = _whiteTex->GetDesc().Format;
 			_dx12.Device()->CreateShaderResourceView(_whiteTex.Get(), &matSRVDesc, basicHeapHandle);
 		}
 		else
 		{
-			matSRVDesc.Format = _textureResources[i]->GetDesc().Format;
-			_dx12.Device()->CreateShaderResourceView(_textureResources[i].Get(), &matSRVDesc, basicHeapHandle);
+			matSRVDesc.Format = _resourceTable[texturePath[i]]->GetDesc().Format;
+			_dx12.Device()->CreateShaderResourceView(_resourceTable[texturePath[i]].Get(), &matSRVDesc, basicHeapHandle);
 		}
 		basicHeapHandle.ptr += inc;
 
-		if (_sphResources[i] == nullptr)
+		if (sphPath[i].empty())
 		{
 			matSRVDesc.Format = _whiteTex->GetDesc().Format;
 			_dx12.Device()->CreateShaderResourceView(_whiteTex.Get(), &matSRVDesc, basicHeapHandle);
 		}
 		else
 		{
-			matSRVDesc.Format = _sphResources[i]->GetDesc().Format;
-			_dx12.Device()->CreateShaderResourceView(_sphResources[i].Get(), &matSRVDesc, basicHeapHandle);
+			matSRVDesc.Format = _resourceTable[sphPath[i]]->GetDesc().Format;
+			_dx12.Device()->CreateShaderResourceView(_resourceTable[sphPath[i]].Get(), &matSRVDesc, basicHeapHandle);
 		}
 		basicHeapHandle.ptr += inc;
 
-		if (_spaResources[i] == nullptr)
+		if (spaPath[i].empty())
 		{
 			matSRVDesc.Format = _blackTex->GetDesc().Format;
 			_dx12.Device()->CreateShaderResourceView(_blackTex.Get(), &matSRVDesc, basicHeapHandle);
 		}
 		else
 		{
-			matSRVDesc.Format = _spaResources[i]->GetDesc().Format;
-			_dx12.Device()->CreateShaderResourceView(_spaResources[i].Get(), &matSRVDesc, basicHeapHandle);
+			matSRVDesc.Format = _resourceTable[spaPath[i]]->GetDesc().Format;
+			_dx12.Device()->CreateShaderResourceView(_resourceTable[spaPath[i]].Get(), &matSRVDesc, basicHeapHandle);
+		}
+		basicHeapHandle.ptr += inc;
+
+		if (toonPath[i].empty())
+		{
+			matSRVDesc.Format = _grayGradationTex->GetDesc().Format;
+			_dx12.Device()->CreateShaderResourceView(_grayGradationTex.Get(), &matSRVDesc, basicHeapHandle);
+		}
+		else
+		{
+			matSRVDesc.Format = _resourceTable[toonPath[i]]->GetDesc().Format;
+			_dx12.Device()->CreateShaderResourceView(_resourceTable[toonPath[i]].Get(), &matSRVDesc, basicHeapHandle);
 		}
 		basicHeapHandle.ptr += inc;
 	}
 	return true;
 };
 void PMDActor::Update(PMDRenderer& renderer, const XMMATRIX& view, const XMMATRIX& proj) {
-	angle += 0.03f;
+	angle += 0.01f;
 	_worldMatrix = XMMatrixRotationY(angle);
 	_mapMatrix->world = _worldMatrix;
 	_mapMatrix->view = view;

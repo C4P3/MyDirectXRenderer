@@ -1,5 +1,5 @@
 
-#define MATERIAL_MULTIPLIER 4
+#define MATERIAL_MULTIPLIER 5
 
 #include <Windows.h>
 #include <tchar.h> // _T マクロ用
@@ -123,19 +123,27 @@ bool PMDRenderer::Init(Dx12Wrapper& dx12)
 		rootSignatureDesc.NumParameters = 2;
 
 		//サンプラーの設定
-		D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
-		samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-		samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-		samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-		samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
-		samplerDesc.MinLOD = 0.0f;
-		samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		D3D12_STATIC_SAMPLER_DESC samplerDesc[2] = {};
+		samplerDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // 繰り返しあり
+		samplerDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		samplerDesc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		samplerDesc[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;// 補間しない
+		samplerDesc[0].MaxLOD = D3D12_FLOAT32_MAX;
+		samplerDesc[0].MinLOD = 0.0f;
+		samplerDesc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		samplerDesc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		samplerDesc[0].ShaderRegister = 0;
 
-		rootSignatureDesc.pStaticSamplers = &samplerDesc;
-		rootSignatureDesc.NumStaticSamplers = 1;
+		samplerDesc[1] = samplerDesc[0];
+		samplerDesc[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP; // 繰り返しなし
+		samplerDesc[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+		samplerDesc[1].ShaderRegister = 1;
+
+
+		rootSignatureDesc.pStaticSamplers = samplerDesc;
+		rootSignatureDesc.NumStaticSamplers = 2;
 
 		ComPtr<ID3DBlob> rootSigBlob = nullptr;
 		ComPtr<ID3DBlob> errorBlob = nullptr;

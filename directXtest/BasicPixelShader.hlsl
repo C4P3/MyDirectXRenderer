@@ -9,7 +9,8 @@ float4 BasicPS(Output input) : SV_TARGET
     float3 lightColor = float3(1, 1, 1);
     
     // ディフューズ計算
-    float diffuseB = dot(-light, (float3)input.normal);
+    float diffuseB = saturate(dot(-light, (float3) input.normal));
+    float4 toonDif = toon.Sample(smpToon, float2(0, 1.0 - diffuseB));
     
     // 光の反射ベクトル
     float3 refLight = normalize(reflect(light, input.normal.xyz));
@@ -23,7 +24,8 @@ float4 BasicPS(Output input) : SV_TARGET
     float4 texColor = tex.Sample(smp, input.uv);
     
     return max(
-        diffuseB    // 輝度
+        toonDif     // 輝度（トゥーン）
+        // diffuseB  // 輝度
         * diffuse   // ディフューズカラー
         * texColor  // テクスチャカラー
         * sph.Sample(smp, sphereMapUV)  // スフィアマップ

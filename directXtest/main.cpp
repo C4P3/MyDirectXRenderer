@@ -1,6 +1,4 @@
 
-#define MATERIAL_MULTIPLIER 4
-
 #include <Windows.h>
 #include <tchar.h> // _T É}ÉNÉçóp
 #include <d3d12.h>

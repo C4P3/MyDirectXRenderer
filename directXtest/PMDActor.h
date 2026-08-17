@@ -3,6 +3,7 @@
 #include <d3d12.h>
 #include <vector>
 #include <string>          // ← AdditionalMaterial::texPath 用
+#include <map>
 #include <DirectXMath.h>   // ← XMFLOAT3 用
 #include <wrl/client.h>    // ← ComPtr をメンバに持つなら
 #include "PMDRenderer.h"
@@ -54,11 +55,10 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> _idxBuff = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _constBuff = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _materialBuff = nullptr;
-	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _textureResources;
-	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _sphResources;
-	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _spaResources;
+	std::map<std::string, Microsoft::WRL::ComPtr<ID3D12Resource>> _resourceTable;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _whiteTex = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _blackTex = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _grayGradationTex = nullptr;
 	unsigned int indicesNum = 0;	// このマテリアルが割り当てられるインデックス数
 	std::vector<Material> materials = {};
 	SceneMatrix* _mapMatrix = nullptr;

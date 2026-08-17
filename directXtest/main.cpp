@@ -1,6 +1,10 @@
 
 #include <Windows.h>
-#include "Application.h"
+//#include "Application.h"
+#include "core/lattice.h"     // greg::QuadMesh, roundLattice, makeCube
+#include "core/patch_mesh.h"  // greg::PatchMesh
+
+using namespace greg;
 
 #ifdef _DEBUG
 int main()
@@ -9,15 +13,18 @@ int main()
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
 #endif
+	// main.cpp の頭あたりで一時的に
+	auto cube = greg::makeCube();
+	auto pm = greg::roundLattice(cube);
+	std::cout << "patches: " << pm.patches.size()   // 6
+		<< " edges: " << pm.edges.size()     // 12（立方体の共有辺）
+		<< std::endl;
 
-#pragma region 1. ウィンドウの生成
-	auto& app = Application::Instance();
+	/*auto& app = Application::Instance();
 	if (!app.Init()) {
 		return -1;
 	}
-#pragma region 5. メインループ
 	app.Run();
-	app.Terminate();
-#pragma endregion 5. メインループ
+	app.Terminate();*/
 	return 0;
 }

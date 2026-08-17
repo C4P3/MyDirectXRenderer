@@ -60,8 +60,12 @@ bool Application::Init() {
 		_pmdRenderer.reset(new PMDRenderer(*_dx12));
 		if (!_pmdRenderer->Init()) return -1; // パイプライン構築
 		_pmdActor.reset(new PMDActor(*_dx12));
-		_pmdActor->Load("Model/初音ミク.pmd");
-		_pmdRenderer->AddActor(_pmdActor.get());
+		if (_pmdActor->Load("Model/初音ミク.pmd")) {
+			_pmdRenderer->AddActor(_pmdActor.get());
+		}
+		else {
+			_pmdActor.reset();   // Update() の呼び出し側でも null チェック
+		}
 		_scene.reset(new Scene(*_dx12));
 		if (!_scene->Init(window_width, window_height)) return false;
 	#pragma endregion 3. パイプラインの構築

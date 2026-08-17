@@ -48,14 +48,23 @@
     <ClCompile Include="Gregory\core\mismatch.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="GregoryActor.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="GregoryRenderer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="BasicVertexShader.hlsl" />
     <FxCompile Include="BasicPixelShader.hlsl" />
+    <FxCompile Include="GregoryPixelShader.hlsl" />
+    <FxCompile Include="GregoryVertexShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="BasicShaderHeader.hlsli" />
     <None Include="packages.config" />
+    <None Include="GregoryShaderHeader.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -74,6 +83,12 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="Scene.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="GregoryActor.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="GregoryRenderer.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

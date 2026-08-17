@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37111.16
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "directXtest", "directXtest\directXtest.vcxproj", "{D850E739-3470-4D41-9A5C-BB8E82094A5C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MyDirectXRenderer", "MyDirectXRenderer\MyDirectXRenderer.vcxproj", "{D850E739-3470-4D41-9A5C-BB8E82094A5C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

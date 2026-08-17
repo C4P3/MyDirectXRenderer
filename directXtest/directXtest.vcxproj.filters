@@ -40,6 +40,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="BasicShaderHeader.hlsli" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">

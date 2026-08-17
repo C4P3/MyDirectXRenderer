@@ -7,6 +7,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+packages/
 
 # ---- ビルド出力 / 中間ファイル ----
 [Dd]ebug/

@@ -141,6 +141,8 @@
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="Dx12Wrapper.cpp" />
+    <ClCompile Include="GregoryActor.cpp" />
+    <ClCompile Include="GregoryRenderer.cpp" />
     <ClCompile Include="Gregory\core\g1.cpp" />
     <ClCompile Include="Gregory\core\gregory.cpp" />
     <ClCompile Include="Gregory\core\lattice.cpp" />
@@ -168,15 +170,34 @@
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">BasicVS</EntryPointName>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
     </FxCompile>
+    <FxCompile Include="GregoryPixelShader.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">GregoryPS</EntryPointName>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+    </FxCompile>
+    <FxCompile Include="GregoryVertexShader.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">GregoryVS</EntryPointName>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="BasicShaderHeader.hlsli" />
+    <None Include="GregoryShaderHeader.hlsli" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Dx12Wrapper.h" />
+    <ClInclude Include="GregoryActor.h" />
+    <ClInclude Include="GregoryRenderer.h" />
     <ClInclude Include="PMDActor.h" />
     <ClInclude Include="PMDRenderer.h" />
     <ClInclude Include="Scene.h" />

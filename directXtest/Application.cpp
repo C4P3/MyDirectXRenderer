@@ -2,6 +2,8 @@
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"
+#include "GregoryRenderer.h"
+#include "GregoryActor.h"
 #include "Scene.h"
 #include <tchar.h>
 
@@ -52,23 +54,34 @@ bool Application::Init() {
 
 	ShowWindow(_hwnd, SW_SHOW);
 
-	#pragma region 3. パイプラインの構築
-		_dx12.reset(new Dx12Wrapper());
-		if (!_dx12->Init(GetWindowHandle(), window_width, window_height)) {
-			return -1;
-		}
-		_pmdRenderer.reset(new PMDRenderer(*_dx12));
-		if (!_pmdRenderer->Init()) return -1; // パイプライン構築
-		_pmdActor.reset(new PMDActor(*_dx12));
-		if (_pmdActor->Load("Model/初音ミク.pmd")) {
-			_pmdRenderer->AddActor(_pmdActor.get());
-		}
-		else {
-			_pmdActor.reset();   // Update() の呼び出し側でも null チェック
-		}
-		_scene.reset(new Scene(*_dx12));
-		if (!_scene->Init(window_width, window_height)) return false;
-	#pragma endregion 3. パイプラインの構築
+	// dx12
+	_dx12.reset(new Dx12Wrapper());
+	if (!_dx12->Init(GetWindowHandle(), window_width, window_height)) {
+		return -1;
+	}
+
+	// scene
+	_scene.reset(new Scene(*_dx12));
+	if (!_scene->Init(window_width, window_height)) return false;
+
+	// PMD
+	_pmdRenderer.reset(new PMDRenderer(*_dx12));
+	if (!_pmdRenderer->Init()) return -1; // パイプライン構築
+	_pmdActor.reset(new PMDActor(*_dx12));
+	if (_pmdActor->Load("Model/初音ミク.pmd")) {
+		_pmdRenderer->AddActor(_pmdActor.get());
+	}
+	else {
+		_pmdActor.reset();   // Update() の呼び出し側でも null チェック
+	}
+
+	// gregory
+	_gregoryRenderer.reset(new GregoryRenderer(*_dx12));
+	if (!_gregoryRenderer->Init()) return false;
+	_gregoryActor.reset(new GregoryActor(*_dx12));
+	if (!_gregoryActor->BuildMesh(16)) return false;
+	_gregoryRenderer->AddActor(_gregoryActor.get());
+
 	return true;
 }
 
@@ -99,15 +112,16 @@ void Application::Run()
 		else
 		{
 			// 本当は論理フレームループ
-			_pmdActor->Update();
-
-			/*_mapMatrix->view = view;
-			_mapMatrix->proj = proj;*/
+			_scene->Update();
+			if (_pmdActor) _pmdActor->Update();
+			_gregoryActor->Update();
 
 			// 本当は描画フレームループ
 			// ========= 描画前処理 =========
 			_dx12->BeginDraw();
+			// ========= 描画処理 =========
 			_pmdRenderer->Draw(*_scene);
+			_gregoryRenderer->Draw(*_scene); // ← パイプラインを切り替えて2回目の描画
 			// ========= 描画後処理とGPU同期 =========
 			_dx12->EndDraw();
 		}
@@ -115,7 +129,7 @@ void Application::Run()
 }
 void Application::Terminate()
 {
-	1 + 1;
+	UnregisterClass(_windowClass.lpszClassName, _windowClass.hInstance);
 }
 
 Application& Application::Instance()

@@ -5,7 +5,8 @@ class Dx12Wrapper;
 class PMDRenderer;
 class PMDActor;
 class Scene;
-
+class GregoryRenderer;
+class GregoryActor;
 
 class Application
 {
@@ -28,6 +29,8 @@ private:
     std::unique_ptr<Dx12Wrapper> _dx12;
     std::unique_ptr<PMDRenderer> _pmdRenderer;
     std::unique_ptr<PMDActor> _pmdActor;
+    std::unique_ptr<GregoryRenderer> _gregoryRenderer;
+    std::unique_ptr<GregoryActor> _gregoryActor;
     std::unique_ptr<Scene> _scene;
 public:
     // 唯一のインスタンスを取得する（シングルトンへのアクセスポイント）

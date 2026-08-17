@@ -37,12 +37,14 @@ struct Material
 class PMDRenderer
 {
 private:
+	Dx12Wrapper& _dx12;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState;
 public:
-	bool Init(Dx12Wrapper& dx12);
+	PMDRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
+	bool Init();
 
-	void Draw(Dx12Wrapper& dx12,
+	void Draw(
 		const D3D12_VERTEX_BUFFER_VIEW& vbView,
 		const D3D12_INDEX_BUFFER_VIEW& ibView,
 		ID3D12DescriptorHeap* descHeap,

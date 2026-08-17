@@ -1,22 +1,42 @@
 #pragma once
 #include <Windows.h>
+#include <memory>
+class Dx12Wrapper;
+class PMDRenderer;
+class PMDActor;
+
 
 class Application
 {
 private:
-    HWND hwnd = nullptr;
-    WNDCLASSEX w = {};
-    int window_width;
-    int window_height;
-
-public:
-    Application(int width, int height); // 宣言のみ
+    // シングルトンパターンのため、コンストラクタとデストラクタをprivateに隠蔽
+    Application() = default;
     ~Application();
 
-    bool Init();
-    bool ProcessMessage(bool& quit);
+    // 意図しないコピーやムーブを防ぐ
+    Application(const Application&) = delete;
+    Application& operator=(const Application&) = delete;
+    Application(Application&&) = delete;
+    Application& operator=(Application&&) = delete;
 
-    HWND GetWindowHandle() const { return hwnd; } // 1行で終わる単純なゲッターはヘッダーに書いてもOK (インライン化)
-    int GetWindowWidth() const { return window_width; }
-    int GetWindowHeight() const { return window_height; }
+    // ウィンドウ関連
+    HWND _hwnd = nullptr;
+    WNDCLASSEX _windowClass = {};
+
+    // 各主要モジュールの管理（自動でメモリ解放される unique_ptr を使用）
+    std::unique_ptr<Dx12Wrapper> _dx12;
+    std::unique_ptr<PMDRenderer> _pmdRenderer;
+    std::unique_ptr<PMDActor> _pmdActor;
+public:
+    // 唯一のインスタンスを取得する（シングルトンへのアクセスポイント）
+    static Application& Instance();
+
+    // アプリケーションのライフサイクル
+    bool Init();
+    void Run();
+    void Terminate();
+
+    // ゲッター
+    HWND GetWindowHandle() const { return _hwnd; }
+    //SIZE GetWindowSize();
 };

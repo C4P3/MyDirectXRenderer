@@ -39,7 +39,7 @@ using Microsoft::WRL::ComPtr;
 
 
 	// 初期化：シェーダーコンパイル、ルートシグネチャ、PSOの作成を行う
-bool PMDRenderer::Init(Dx12Wrapper& dx12)
+bool PMDRenderer::Init()
 	{
 		// dx12.Device() を使ってルートシグネチャやPSOを作成し、
 		// メンバ変数の _rootSignature と _pipelineState に格納します。
@@ -159,7 +159,7 @@ bool PMDRenderer::Init(Dx12Wrapper& dx12)
 			}
 			return false;
 		}
-		result = dx12.Device()->CreateRootSignature(
+		result = _dx12.Device()->CreateRootSignature(
 			0,
 			rootSigBlob->GetBufferPointer(),
 			rootSigBlob->GetBufferSize(),
@@ -258,20 +258,20 @@ bool PMDRenderer::Init(Dx12Wrapper& dx12)
 		gpipeline.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 
 
-		result = dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelineState));
+		result = _dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelineState));
 		if (FAILED(result))return false;
 
 		return true;
 	}
 
 // 描画コマンドの積み込み
-void PMDRenderer::Draw(Dx12Wrapper& dx12,
+void PMDRenderer::Draw(
 	const D3D12_VERTEX_BUFFER_VIEW& vbView,
 	const D3D12_INDEX_BUFFER_VIEW& ibView,
 	ID3D12DescriptorHeap* descHeap,
 	const std::vector<Material>& materials)
 {
-	auto cmdList = dx12.CommandList();
+	auto cmdList = _dx12.CommandList();
 
 	// パイプラインの設定
 	cmdList->SetPipelineState(_pipelineState.Get());
@@ -283,7 +283,7 @@ void PMDRenderer::Draw(Dx12Wrapper& dx12,
 	cmdList->SetDescriptorHeaps(1, ppHeaps);
 	cmdList->SetGraphicsRootDescriptorTable(0, descHeapH);
 	// 進める
-	descHeapH.ptr += dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	descHeapH.ptr += _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	// ジオメトリのセットと描画
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -291,7 +291,7 @@ void PMDRenderer::Draw(Dx12Wrapper& dx12,
 	cmdList->IASetIndexBuffer(&ibView);
 
 	// 4倍
-	auto cbvsrvIncSize = dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * MATERIAL_MULTIPLIER;
+	auto cbvsrvIncSize = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * MATERIAL_MULTIPLIER;
 	unsigned int idxOffset = 0;
 	for (auto& m : materials) {
 		cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);

@@ -65,9 +65,9 @@ private:
 	float angle = 0.0f;
 	DirectX::XMMATRIX _worldMatrix = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
 public:
+	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
 	SceneMatrix* MapMatrix() const { return _mapMatrix; }
-    PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
     bool Load(const char* filepath);
     void Update(PMDRenderer& renderer, const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
     void Draw();

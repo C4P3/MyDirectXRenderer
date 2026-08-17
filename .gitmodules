@@ -1,0 +1,3 @@
+[submodule "directXtest/External/glm"]
+	path = directXtest/External/glm
+	url = https://github.com/g-truc/glm.git

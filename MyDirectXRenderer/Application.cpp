@@ -21,7 +21,8 @@ const unsigned int window_height = 720;
 static LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
 	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
-	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) return true;
+
+	if (LRESULT result = ImGui_ImplWin32_WndProcHandler(hwnd, msg, wparam, lparam)) return result;
     if (msg == WM_DESTROY) {
         PostQuitMessage(0);
         return 0;

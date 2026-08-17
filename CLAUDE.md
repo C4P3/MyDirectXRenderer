@@ -13,8 +13,8 @@ C++ / Visual Studio / Windows / DirectX12（DirectXTex, d3dx12.h を使用）
 これらの予定だが固まり切っていない
 - `Application`
 - `Dx12Wrapper` viewMatrix, projMatrix, Init(), UPDATE(), Draw()
-- `PMDRenderer` PMD共通 pipeline, rootSignature, Update(), Draw()
-- `PMDActor` モデルごと vBView, iBView, transBuffer, materialNum, materialHeap, worldMatrix, Load(), Update(), Draw()
+- `PMDRenderer` pipeline, rootSignature, Update(), Draw()
+- `PMDActor` vBView, iBView, transBuffer, materialNum, materialHeap, worldMatrix, Load(), Update(), Draw()
 
 ## 依頼の仕方
 - **コードは書かないでほしい。** ファイルの作成・編集はしない。聞いたことにチャットで答えるだけ。

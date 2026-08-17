@@ -5,6 +5,7 @@
 #include <string>          // ← AdditionalMaterial::texPath 用
 #include <DirectXMath.h>   // ← XMFLOAT3 用
 #include <wrl/client.h>    // ← ComPtr をメンバに持つなら
+#include "PMDRenderer.h"
 
 class Dx12Wrapper;
 
@@ -31,33 +32,6 @@ struct SceneMatrix
 	DirectX::XMMATRIX eye;	// 視点座標
 };
 
-#pragma pack(push, 1) // 1バイト境界に設定（パディングを無効化）
-struct PMDVertex_Raw
-{
-	DirectX::XMFLOAT3 pos;			// 12バイト
-	DirectX::XMFLOAT3 normal;		// 12バイト
-	DirectX::XMFLOAT2 uv;			// 8バイト
-	unsigned short boneNo[2];	// 4バイト
-	unsigned char boneWeight;	// 1バイト
-	unsigned char edgeFlg;		// 1バイト
-}; // これで確実に sizeof(PMDVertex_Raw) == 38 になる
-
-// PMD マテリアル構造体
-struct PMDMaterial_Raw
-{
-	DirectX::XMFLOAT3 diffuse;	// ディフューズ色
-	float alpha;	// ディフューズα
-	float specularity;	// スペキュラの強さ（乗算値）
-	DirectX::XMFLOAT3 specular;	// スペキュラ色
-	DirectX::XMFLOAT3 ambient;	// アンビエント色
-	unsigned char toonIdx;	// トゥーン番号
-	unsigned char edgeFlg;	// マテリアルごとの輪郭線フラグ
-	// pragma pack(1) によりここに2バイトパディングが発生しない
-	unsigned int indicesNum;	// このマテリアルが割り当てられるインデックス数
-	char texFilePath[20];	// テクスチャファイルパス
-}; // 70バイト
-#pragma pack(pop) // 元のアライメント設定に戻す
-
 struct PMDVertex
 {
 	DirectX::XMFLOAT3 pos;				// 頂点座標		: 12バイト
@@ -72,9 +46,28 @@ struct PMDVertex
 
 class PMDActor {
     Dx12Wrapper& _dx12;
+	D3D12_VERTEX_BUFFER_VIEW vbView = {};
+	D3D12_INDEX_BUFFER_VIEW ibView = {};
+	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _basicDescHeap = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _vertBuff = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _idxBuff = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _constBuff = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _materialBuff = nullptr;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _textureResources;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _sphResources;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _spaResources;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _whiteTex = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _blackTex = nullptr;
+	unsigned int indicesNum = 0;	// このマテリアルが割り当てられるインデックス数
+	std::vector<Material> materials = {};
+	SceneMatrix* _mapMatrix = nullptr;
+	float angle = 0.0f;
+	DirectX::XMMATRIX _worldMatrix = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
 public:
+	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
+	SceneMatrix* MapMatrix() const { return _mapMatrix; }
     PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
     bool Load(const char* filepath);
-    void Update();
+    void Update(PMDRenderer& renderer, const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
     void Draw();
 };

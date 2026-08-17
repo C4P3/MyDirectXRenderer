@@ -109,9 +109,14 @@ void Application::Run()
 		}
 		else
 		{
+			// 本当は論理フレームループ
+			_pmdActor->Update(viewMat, projMat);
+
+			// 本当は描画フレームループ
 			// ========= 描画前処理 =========
 			_dx12->BeginDraw();
-			_pmdActor->Update(*_pmdRenderer, viewMat, projMat);
+			_pmdRenderer->Draw();
+			_pmdActor->Draw();
 			// ========= 描画後処理とGPU同期 =========
 			_dx12->EndDraw();
 		}

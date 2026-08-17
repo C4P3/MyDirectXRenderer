@@ -69,7 +69,7 @@ public:
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
 	SceneMatrix* MapMatrix() const { return _mapMatrix; }
     bool Load(const char* filepath);
-    void Update(PMDRenderer& renderer, const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
+    void Update(const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
     void Draw();
 	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(
 		const std::string& filePath

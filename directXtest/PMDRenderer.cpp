@@ -265,40 +265,11 @@ bool PMDRenderer::Init()
 	}
 
 // 描画コマンドの積み込み
-void PMDRenderer::Draw(
-	const D3D12_VERTEX_BUFFER_VIEW& vbView,
-	const D3D12_INDEX_BUFFER_VIEW& ibView,
-	ID3D12DescriptorHeap* descHeap,
-	const std::vector<Material>& materials)
+void PMDRenderer::Draw()
 {
 	auto cmdList = _dx12.CommandList();
 
 	// パイプラインの設定
 	cmdList->SetPipelineState(_pipelineState.Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
-
-	// テクスチャCBV（ヒープ）のセット
-	ID3D12DescriptorHeap* ppHeaps[] = { descHeap };
-	auto descHeapH = descHeap->GetGPUDescriptorHandleForHeapStart();
-	cmdList->SetDescriptorHeaps(1, ppHeaps);
-	cmdList->SetGraphicsRootDescriptorTable(0, descHeapH);
-	// 進める
-	descHeapH.ptr += _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-	// ジオメトリのセットと描画
-	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	cmdList->IASetVertexBuffers(0, 1, &vbView);
-	cmdList->IASetIndexBuffer(&ibView);
-
-	// 4倍
-	auto cbvsrvIncSize = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * MATERIAL_MULTIPLIER;
-	unsigned int idxOffset = 0;
-	for (auto& m : materials) {
-		cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);
-		cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
-
-		// ヒープポインターとインデックスを次に進める
-		descHeapH.ptr += cbvsrvIncSize;
-		idxOffset += m.indicesNum;
-	}
 }

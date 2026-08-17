@@ -449,14 +449,38 @@ bool PMDActor::Load(const char* filepath) {
 	}
 	return true;
 };
-void PMDActor::Update(PMDRenderer& renderer, const XMMATRIX& view, const XMMATRIX& proj) {
+void PMDActor::Update(const XMMATRIX& view, const XMMATRIX& proj) {
 	angle += 0.01f;
 	_worldMatrix = XMMatrixRotationY(angle);
 	_mapMatrix->world = _worldMatrix;
 	_mapMatrix->view = view;
 	_mapMatrix->proj = proj;
-	// ========= 実際の描画 =========
-	renderer.Draw(vbView, ibView, _basicDescHeap.Get(), materials);
 };
 void PMDActor::Draw() {
+	// ========= 実際の描画 =========
+	auto cmdList = _dx12.CommandList();
+	// テクスチャCBV（ヒープ）のセット
+	auto descHeapH = _basicDescHeap->GetGPUDescriptorHandleForHeapStart();
+	ID3D12DescriptorHeap* ppHeaps[] = { _basicDescHeap.Get() };
+	cmdList->SetDescriptorHeaps(1, ppHeaps);
+	cmdList->SetGraphicsRootDescriptorTable(0, descHeapH);
+	// 進める
+	descHeapH.ptr += _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	// ジオメトリのセットと描画
+	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	cmdList->IASetVertexBuffers(0, 1, &vbView);
+	cmdList->IASetIndexBuffer(&ibView);
+
+	// 4倍
+	auto cbvsrvIncSize = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * MATERIAL_MULTIPLIER;
+	unsigned int idxOffset = 0;
+	for (auto& m : materials) {
+		cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);
+		cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
+
+		// ヒープポインターとインデックスを次に進める
+		descHeapH.ptr += cbvsrvIncSize;
+		idxOffset += m.indicesNum;
+	}
 };

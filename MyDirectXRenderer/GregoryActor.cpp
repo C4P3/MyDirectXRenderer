@@ -35,7 +35,7 @@ using Microsoft::WRL::ComPtr;
 // Load() 相当。段階 B では格子を編集しないので初回1回だけで良い
 bool GregoryActor::BuildMesh(int segments)
 {
-	_lattice = greg::makeCube();
+	_lattice = greg::makeTorus(10, 5, 5, 3);
 	_patchMesh = greg::roundLattice(_lattice);
 
 	std::vector<GregoryVertex> verts;
@@ -110,9 +110,9 @@ bool GregoryActor::BuildMesh(int segments)
 };
 void GregoryActor::Update() {
 	angle += 0.01f;
-	_worldMatrix = XMMatrixScaling(8, 8, 8)
-		* XMMatrixRotationY(angle)
-		* XMMatrixTranslation(0, 10, 0);
+	_worldMatrix = XMMatrixScaling(1, 1, 1)
+		* XMMatrixRotationX(angle)
+		* XMMatrixTranslation(10, 10, 0);
 	_mappedTransform->world = _worldMatrix;
 };
 void GregoryActor::Draw() {

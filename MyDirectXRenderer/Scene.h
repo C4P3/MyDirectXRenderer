@@ -18,7 +18,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Resource> _sceneBuff;
     SceneData* _mappedScene = nullptr;      // 永続マップ。外には出さない
 
-    DirectX::XMFLOAT3 _eye{ 0, 15, -15 };
+    DirectX::XMFLOAT3 _eye{ 0, 15, -35 };
     DirectX::XMFLOAT3 _target{ 0, 10, 0 };
     DirectX::XMFLOAT3 _up{ 0, 1, 0 };
     float _aspect = 1.0f;

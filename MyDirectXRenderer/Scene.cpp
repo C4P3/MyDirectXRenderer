@@ -33,6 +33,6 @@ void Scene::Update()
 {
     _mappedScene->view = XMMatrixLookAtLH(
         XMLoadFloat3(&_eye), XMLoadFloat3(&_target), XMLoadFloat3(&_up));
-    _mappedScene->proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, _aspect, 1.0f, 100.0f);
+    _mappedScene->proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, _aspect, 1.0f, 100.0f);
     _mappedScene->eye = _eye;
 }

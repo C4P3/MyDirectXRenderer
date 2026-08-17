@@ -1,4 +1,3 @@
-#include "PMDActor.h"
 #define MATERIAL_MULTIPLIER 5
 
 #include <Windows.h>
@@ -20,7 +19,6 @@
 #include "d3dx12.h"
 #include "Application.h"
 #include "Dx12Wrapper.h"
-#include "PMDRenderer.h"
 #include "PMDActor.h"
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -188,7 +186,7 @@ bool PMDActor::Load(const char* filepath) {
 	unsigned int materialNum; // マテリアル数
 	std::vector<PMDMaterial_Raw> rawPmdMaterials;
 
-	std::string strModelPath = "Model/初音ミク.pmd";
+	std::string strModelPath = filepath;
 	FILE* fp;
 	fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) return false;

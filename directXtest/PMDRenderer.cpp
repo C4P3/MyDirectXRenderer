@@ -21,6 +21,8 @@
 #include "Application.h"
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
+#include "PMDActor.h"
+
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "d3d12.lib")
@@ -272,4 +274,6 @@ void PMDRenderer::Draw()
 	// パイプラインの設定
 	cmdList->SetPipelineState(_pipelineState.Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+
+	for (auto& actor : _actors) actor->Draw();
 }

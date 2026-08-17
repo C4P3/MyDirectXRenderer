@@ -60,7 +60,8 @@ bool Application::Init() {
 		_pmdRenderer.reset(new PMDRenderer(*_dx12));
 		if (!_pmdRenderer->Init()) return -1; // パイプライン構築
 		_pmdActor.reset(new PMDActor(*_dx12));
-		if (!_pmdActor->Load("Model/初音ミク.pmd")) return -1;
+		_pmdActor->Load("Model/初音ミク.pmd");
+		_pmdRenderer->AddActor(_pmdActor.get());
 	#pragma endregion 3. パイプラインの構築
 
 	#pragma region 4. アセットの作成とデータ転送
@@ -116,7 +117,6 @@ void Application::Run()
 			// ========= 描画前処理 =========
 			_dx12->BeginDraw();
 			_pmdRenderer->Draw();
-			_pmdActor->Draw();
 			// ========= 描画後処理とGPU同期 =========
 			_dx12->EndDraw();
 		}

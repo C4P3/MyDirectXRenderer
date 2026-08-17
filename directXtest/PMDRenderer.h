@@ -7,6 +7,7 @@
 #include <wrl/client.h>    // ← ComPtr をメンバに持つなら
 
 class Dx12Wrapper;
+class PMDActor;
 
 // シェーダー側に投げられるマテリアルデータ
 struct MaterialForHlsl
@@ -38,10 +39,12 @@ class PMDRenderer
 {
 private:
 	Dx12Wrapper& _dx12;
+	std::vector<PMDActor*> _actors;   // 非所有。所有者は Application
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState;
 public:
 	PMDRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
+	void AddActor(PMDActor* actor) { _actors.push_back(actor); }
 	bool Init();
 
 	void Draw();

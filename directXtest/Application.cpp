@@ -4,12 +4,11 @@
 #include "PMDActor.h"
 #include "Scene.h"
 #include <tchar.h>
+
 using namespace DirectX;
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
-XMMATRIX viewMat;
-XMMATRIX projMat;
 
 static LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {

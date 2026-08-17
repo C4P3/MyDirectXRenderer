@@ -2,20 +2,13 @@
 #define MATERIAL_MULTIPLIER 5
 
 #include <Windows.h>
-#include <tchar.h> // _T マクロ用
 #include <vector>
 #include <wrl/client.h> // ComPtr用
 #include <string>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
-#include <DirectXTex.h>
 #include <d3dcompiler.h>
-#include <sstream>
-#include <filesystem>
-#include <algorithm>
-#include <span>
-#include <map>
 
 #include "d3dx12.h"
 #include "Dx12Wrapper.h"

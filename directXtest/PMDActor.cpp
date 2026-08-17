@@ -1,19 +1,16 @@
 #define MATERIAL_MULTIPLIER 5
 
 #include <Windows.h>
-#include <tchar.h> // _T マクロ用
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <vector>
 #include <wrl/client.h> // ComPtr用
 #include <string>
 #include <DirectXMath.h>
-#include <d3dcompiler.h>
 #include <DirectXTex.h>
 #include <sstream>
 #include <filesystem>
 #include <algorithm>
-#include <span>
 #include <map>
 
 #include "d3dx12.h"
@@ -21,7 +18,6 @@
 #include "Dx12Wrapper.h"
 #include "PMDActor.h"
 
-#pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "DirectXTex.lib")

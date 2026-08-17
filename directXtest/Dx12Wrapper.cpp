@@ -1,12 +1,10 @@
 #include "Dx12Wrapper.h"
 
 #include <string>
-#include <DirectXTex.h>
 #include "d3dx12.h"
 
 // ソースファイル内であれば using namespace を使っても安全です
 using namespace std;
-using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
 namespace {

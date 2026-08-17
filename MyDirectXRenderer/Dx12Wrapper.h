@@ -18,6 +18,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> _cmdQueue;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeaps;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeapForImgui();
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _heapForImgui;
 
 
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _backBuffers;
@@ -36,6 +38,7 @@ public:
     ID3D12CommandAllocator* CommandAllocator() const { return _cmdAllocator.Get(); }
     ID3D12Fence* Fence() const { return _fence.Get(); }
     UINT64& FenceVal() { return _fenceVal; }
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetHeapForImgui() const { return _heapForImgui; }
 
     // ä÷êîÇÃêÈåæÇÃÇ›ÇãLèq
     bool Init(HWND hwnd, int window_width, int window_height);

@@ -217,6 +217,10 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	_scissorRect.right = window_width;
 	_scissorRect.bottom = window_height;
 
+	// imgui用
+	_heapForImgui = CreateDescriptorHeapForImgui();
+	if (_heapForImgui == nullptr) return false;
+
 	return true;
 }
 
@@ -368,3 +372,15 @@ ComPtr<ID3D12Resource> Dx12Wrapper::CreateSolidColorTexture(
 		sizeof(data)	// 全サイズ
 	);
 }
+
+ComPtr<ID3D12DescriptorHeap> Dx12Wrapper::CreateDescriptorHeapForImgui() {
+	ComPtr<ID3D12DescriptorHeap> ret;
+	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	desc.NodeMask = 0;
+	desc.NumDescriptors = 1;
+	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+
+	_dev->CreateDescriptorHeap(&desc, IID_PPV_ARGS(ret.ReleaseAndGetAddressOf()));
+	return ret;
+};

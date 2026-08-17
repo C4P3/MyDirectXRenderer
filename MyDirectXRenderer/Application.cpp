@@ -82,7 +82,7 @@ bool Application::Init() {
 	}
 	ImGui_ImplDX12_InitInfo imgui_init_info = {};
 	imgui_init_info.Device = _dx12->Device();
-	imgui_init_info.NumFramesInFlight = 3;
+	imgui_init_info.NumFramesInFlight = 2;// ワップチェーンのバックバッファの数 CPUがGPUを待たずに何フレーム分先まで走ってよいか
 	imgui_init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	imgui_init_info.SrvDescriptorHeap = _dx12->GetHeapForImgui().Get();
 	imgui_init_info.LegacySingleSrvCpuDescriptor = _dx12->GetHeapForImgui().Get()->GetCPUDescriptorHandleForHeapStart();
@@ -139,7 +139,7 @@ void Application::Run()
 		ImGui::NewFrame();
 		ImGui::SetWindowSize(ImVec2(400, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
 		ImGui::Begin("Rendering Test Menu");
-		//_scene->DrawDebugGui();	// ここでカメラをいじる
+		_scene->DrawDebugGui();	// ここでカメラをいじる
 		ImGui::End();
 		ImGui::Render();
 

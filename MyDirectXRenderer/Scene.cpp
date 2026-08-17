@@ -5,6 +5,7 @@
 #include "Scene.h"
 #include "d3dx12.h"
 #include "Dx12Wrapper.h"
+#include "imgui.h"
 
 using namespace DirectX;
 
@@ -33,6 +34,15 @@ void Scene::Update()
 {
     _mappedScene->view = XMMatrixLookAtLH(
         XMLoadFloat3(&_eye), XMLoadFloat3(&_target), XMLoadFloat3(&_up));
-    _mappedScene->proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, _aspect, 1.0f, 100.0f);
+    _mappedScene->proj = XMMatrixPerspectiveFovLH(_fovY, _aspect, _near, _far);
     _mappedScene->eye = _eye;
+}
+
+void Scene::DrawDebugGui() {
+    if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::DragFloat3("eye", &_eye.x, 0.1f);
+        ImGui::DragFloat3("target", &_target.x, 0.1f);
+        ImGui::SliderAngle("fovY", &_fovY, 10.0f, 120.0f);
+        ImGui::DragFloatRange2("near/far", &_near, &_far, 0.1f, 0.01f, 1000.0f);
+    }
 }

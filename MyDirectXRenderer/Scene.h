@@ -22,11 +22,15 @@ private:
     DirectX::XMFLOAT3 _target{ 0, 10, 0 };
     DirectX::XMFLOAT3 _up{ 0, 1, 0 };
     float _aspect = 1.0f;
+    float _fovY = DirectX::XM_PIDIV4;
+    float _near = 1.0f;
+    float _far = 100.0f;
 
 public:
     Scene(Dx12Wrapper& dx12) : _dx12(dx12) {}
     bool Init(int width, int height);
     void Update();
+    void DrawDebugGui();
 
     // ルートCBV に渡す GPU 仮想アドレス
     D3D12_GPU_VIRTUAL_ADDRESS SceneCBAddress() const {

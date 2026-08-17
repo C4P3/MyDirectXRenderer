@@ -45,6 +45,7 @@ struct PMDVertex
 
 
 class PMDActor {
+private:
     Dx12Wrapper& _dx12;
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
@@ -70,4 +71,7 @@ public:
     bool Load(const char* filepath);
     void Update(PMDRenderer& renderer, const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
     void Draw();
+	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(
+		const std::string& filePath
+	);
 };

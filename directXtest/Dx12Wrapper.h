@@ -44,5 +44,15 @@ public:
     void WaitForGPU();
 
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBuffer(size_t sizeInBytes, const void* data, size_t dataSize = 0);
-
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureFromData(
+        UINT64 width,
+        UINT height,
+        DXGI_FORMAT format,
+        const void* pixels,
+        size_t rowPitch,
+        size_t slicePitch
+    );
+    Microsoft::WRL::ComPtr<ID3D12Resource> CreateSolidColorTexture(
+        uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255
+    );
 };

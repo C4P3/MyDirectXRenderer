@@ -315,3 +315,58 @@ ComPtr<ID3D12Resource> Dx12Wrapper::CreateBuffer(size_t sizeInBytes, const void*
 	}
 	return buffer;
 }
+
+ComPtr<ID3D12Resource> Dx12Wrapper::CreateTextureFromData(
+	UINT64 width,
+	UINT height,
+	DXGI_FORMAT format,
+	const void* pixels,
+	size_t rowPitch,
+	size_t slicePitch
+)
+{
+	D3D12_HEAP_PROPERTIES texHeapProp = CD3DX12_HEAP_PROPERTIES(D3D12_CPU_PAGE_PROPERTY_WRITE_BACK, D3D12_MEMORY_POOL_L0);
+
+	D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+		format, width, height, 1, 1 // arraySize = 1, mipLevels = 1
+	);
+
+	// バッファー作成
+	ComPtr<ID3D12Resource> texBuff = nullptr;
+	auto result = _dev->CreateCommittedResource(
+		&texHeapProp, D3D12_HEAP_FLAG_NONE, &resDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&texBuff)
+	);
+	if (FAILED(result)) return nullptr;
+
+	result = texBuff->WriteToSubresource(
+		0, nullptr, pixels,
+		static_cast<UINT>(rowPitch),
+		static_cast<UINT>(slicePitch)
+	);
+	if (FAILED(result)) return nullptr;
+
+	return texBuff;
+}
+
+ComPtr<ID3D12Resource> Dx12Wrapper::CreateSolidColorTexture(
+	uint8_t r, uint8_t g, uint8_t b, uint8_t a/* =255*/
+)
+{
+	uint8_t data[4 * 4 * 4];
+	for (size_t i = 0; i < sizeof(data); i += 4) {
+		data[i + 0] = r;
+		data[i + 1] = g;
+		data[i + 2] = b;
+		data[i + 3] = a;
+	}
+
+	return CreateTextureFromData(
+		4,
+		4,
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		data,
+		4 * 4,	// 1ラインサイズ
+		sizeof(data)	// 全サイズ
+	);
+}

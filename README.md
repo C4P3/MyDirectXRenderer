@@ -4,7 +4,6 @@
 
 本の題材である PMD モデル（MMD）の表示に加えて、**ラティスメッシュから Gregory 曲面を生成して表示する経路**を独自に追加している。最終的には MMD モデルを動かせる自作エンジンにしつつ、大規模な形状データを扱うための仕組み（テッセレーションの GPU 化、GPU メモリ管理、プロキシ表現）を試す土台にしたい。
 
-<!-- TODO: 実行中のスクリーンショットを貼る -->
 ![Cube](./screenshots/cube.png "Cube")
 ![Torus](./screenshots/torus.png "Torus")
 
@@ -56,7 +55,7 @@ Renderer は Actor を非所有ポインタで保持し、所有者は `Applicat
    現在は `Application::Run()` が `Scene` と各 Actor の `Update()` を直接呼び、Renderer の `Draw()` を順に呼んでいる。アニメーションを入れて Actor 側の状態が増えたときに破綻するのではないか。ECS（Entity Component System）なアーキテクチャについて勉強してみたい。
 
 4. **リソース生成の所在**
-   各 Actor が `Dx12Wrapper&` を持って自分でバッファを作っている。後述の GPU メモリ上限管理を入れるなら、生成経路を一箇所に集約する必要になる。
+   各 Actor が `Dx12Wrapper&` を持って自分でバッファを作っている。後述の GPU メモリ上限管理を入れるなら、生成経路を一箇所に集約する必要が出てくるのではないか。
 
 ## ロードマップ
 

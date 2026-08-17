@@ -45,7 +45,4 @@ public:
 
     Microsoft::WRL::ComPtr<ID3D12Resource> CreateBuffer(size_t sizeInBytes, const void* data, size_t dataSize = 0);
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> CreateTextureFromFile(
-        const wchar_t* filePath
-    );
 };

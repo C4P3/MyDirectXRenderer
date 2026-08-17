@@ -261,7 +261,7 @@ void PMDRenderer::Draw(Dx12Wrapper& dx12,
 	const D3D12_VERTEX_BUFFER_VIEW& vbView,
 	const D3D12_INDEX_BUFFER_VIEW& ibView,
 	ID3D12DescriptorHeap* descHeap,
-	int indicesNum, const std::vector<Material>& materials)
+	const std::vector<Material>& materials)
 {
 	auto cmdList = dx12.CommandList();
 

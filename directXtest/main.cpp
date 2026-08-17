@@ -54,9 +54,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		return -1;
 	}
 
-	int window_width = app.GetWindowWidth();
-	int window_height = app.GetWindowHeight();
-	HWND hwnd = app.GetWindowHandle();
 #pragma endregion ウィンドウの生成
 
 	Dx12Wrapper dx12;
@@ -64,7 +61,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 		return -1;
 	}
 
-	HRESULT result;
 #pragma region 3. パイプラインの構築
 	PMDRenderer renderer;
 	if (!renderer.Init(dx12)) return -1; // パイプライン構築
@@ -83,7 +79,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 	//プロジェクション行列
 	auto projMat = XMMatrixPerspectiveFovLH(
 		XM_PIDIV2,
-		static_cast<float>(window_width) / static_cast<float>(window_height),
+		static_cast<float>(app.GetWindowWidth()) / static_cast<float>(app.GetWindowHeight()),
 		1.0f, // 近いクリップ面距離
 		100.0f // 遠いクリップ面距離
 	);

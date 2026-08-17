@@ -465,7 +465,7 @@ void PMDActor::Update(PMDRenderer& renderer, const XMMATRIX& view, const XMMATRI
 	_mapMatrix->view = view;
 	_mapMatrix->proj = proj;
 	// ========= é¿ç€ÇÃï`âÊ =========
-	renderer.Draw(_dx12, vbView, ibView, _basicDescHeap.Get(), indicesNum, materials);
+	renderer.Draw(_dx12, vbView, ibView, _basicDescHeap.Get(), materials);
 };
 void PMDActor::Draw() {
 };

@@ -133,32 +133,29 @@ void Application::Run()
 {
 	// メインループ
 	while (ProcessMessages()) {
-		// 本当は論理フレームループ
+		// --- ImGuiフレーム & UI構築 ---
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+		ImGui::SetWindowSize(ImVec2(400, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
+		ImGui::Begin("Rendering Test Menu");
+		//_scene->DrawDebugGui();	// ここでカメラをいじる
+		ImGui::End();
+		ImGui::Render();
+
+		// --- 論理更新 ---
 		_scene->Update();
 		if (_pmdActor) _pmdActor->Update();
 		_gregoryActor->Update();
 
-		// 本当は描画フレームループ
-		// 描画前処理
-		ImGui_ImplDX12_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
-
+		// --- 描画 ---
 		_dx12->BeginDraw();
-
-		// 描画処理
 		_pmdRenderer->Draw(*_scene);
-		_gregoryRenderer->Draw(*_scene); // ← パイプラインを切り替えて2回目の描画
-
-		ImGui::Begin("Rendering Test Menu");
-		ImGui::SetWindowSize(ImVec2(400, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
-		ImGui::End();
-		ImGui::Render();
+		_gregoryRenderer->Draw(*_scene);
 		_dx12->CommandList()->SetDescriptorHeaps(
 			1, _dx12->GetHeapForImgui().GetAddressOf()
 		);
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _dx12->CommandList());
-		// 描画後処理とGPU同期
 		_dx12->EndDraw();
 	}
 }

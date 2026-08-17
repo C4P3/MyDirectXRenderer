@@ -146,9 +146,7 @@
     <ClCompile Include="Gregory\core\lattice.cpp" />
     <ClCompile Include="Gregory\core\mismatch.cpp" />
     <ClCompile Include="Gregory\core\patch_mesh.cpp" />
-    <ClCompile Include="main.cpp">
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\code\DirectXTex\DirectXTex</AdditionalIncludeDirectories>
-    </ClCompile>
+    <ClCompile Include="main.cpp"/>
     <ClCompile Include="PMDActor.cpp" />
     <ClCompile Include="PMDRenderer.cpp" />
     <ClCompile Include="Scene.cpp" />

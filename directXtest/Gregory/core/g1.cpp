@@ -1,4 +1,4 @@
-#include "core/g1.h"
+﻿#include "core/g1.h"
 
 #include <glm/geometric.hpp>
 #include <cmath>

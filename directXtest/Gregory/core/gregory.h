@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <glm/vec3.hpp>
 
 // 双3次 Gregory パッチの定義と CPU 評価器。このプロジェクトの土台にあたる。

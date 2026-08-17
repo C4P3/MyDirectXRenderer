@@ -1,6 +1,7 @@
 
 #include <Windows.h>
 //#include "Application.h"
+#include <iostream>
 #include "core/lattice.h"     // greg::QuadMesh, roundLattice, makeCube
 #include "core/patch_mesh.h"  // greg::PatchMesh
 

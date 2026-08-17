@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <glm/vec4.hpp>
 #include <vector>
 

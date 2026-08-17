@@ -1,4 +1,4 @@
-#include "core/lattice.h"
+﻿#include "core/lattice.h"
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>

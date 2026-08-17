@@ -1,4 +1,4 @@
-#include "core/patch_mesh.h"
+﻿#include "core/patch_mesh.h"
 
 #include <glm/geometric.hpp>
 

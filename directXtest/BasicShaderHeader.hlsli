@@ -19,20 +19,21 @@ SamplerState smp : register(s0); // 0番スロットに設定されたサンプラ
 SamplerState smpToon : register(s1); // 1番スロットに設定されたサンプラ
 
 
-// 定数バッファー
-cbuffer cbuff0 : register(b0)
+cbuffer SceneBuffer : register(b0)
 {
-    matrix world;
     matrix view;
     matrix proj;
-    float3 eye; // 視点
+    float3 eye;
 };
 
-// 定数バッファー1
-// マテリアル用
 cbuffer Material : register(b1)
 {
     float4 diffuse;
     float4 specular;
     float3 ambient;
 }
+
+cbuffer Transform : register(b2)
+{
+    matrix world;
+};

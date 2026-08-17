@@ -4,6 +4,7 @@
 class Dx12Wrapper;
 class PMDRenderer;
 class PMDActor;
+class Scene;
 
 
 class Application
@@ -27,6 +28,7 @@ private:
     std::unique_ptr<Dx12Wrapper> _dx12;
     std::unique_ptr<PMDRenderer> _pmdRenderer;
     std::unique_ptr<PMDActor> _pmdActor;
+    std::unique_ptr<Scene> _scene;
 public:
     // 唯一のインスタンスを取得する（シングルトンへのアクセスポイント）
     static Application& Instance();
@@ -37,6 +39,6 @@ public:
     void Terminate();
 
     // ゲッター
-    HWND GetWindowHandle() const { return _hwnd; }
+    HWND GetWindowHandle() const { return _hwnd; };
     //SIZE GetWindowSize();
 };

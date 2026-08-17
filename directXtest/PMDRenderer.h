@@ -8,6 +8,7 @@
 
 class Dx12Wrapper;
 class PMDActor;
+class Scene;
 
 // シェーダー側に投げられるマテリアルデータ
 struct MaterialForHlsl
@@ -47,5 +48,5 @@ public:
 	void AddActor(PMDActor* actor) { _actors.push_back(actor); }
 	bool Init();
 
-	void Draw();
+	void Draw(const Scene& scene);
 };

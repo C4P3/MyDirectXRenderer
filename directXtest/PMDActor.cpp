@@ -292,7 +292,7 @@ bool PMDActor::Load(const char* filepath) {
 	XMMATRIX matrix = XMMatrixIdentity();
 
 	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
-	size_t cbSize = (sizeof(SceneMatrix) + 255) & ~255; // 256バイトアライメント
+	size_t cbSize = (sizeof(Transform) + 255) & ~255; // 256バイトアライメント
 
 	// 定数バッファ
 	auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -304,13 +304,13 @@ bool PMDActor::Load(const char* filepath) {
 		&resdesc,
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
-		IID_PPV_ARGS(&_constBuff)
+		IID_PPV_ARGS(&_transformBuff )
 	);
 	if (FAILED(hr)) return false;
 
 	// CPUから読み込まないことを明確にするため Range(0, 0) を指定
 	CD3DX12_RANGE readRange(0, 0);
-	hr = _constBuff->Map(0, &readRange, (void**)&_mapMatrix);
+	hr = _transformBuff ->Map(0, &readRange, (void**)&_mappedTransform );
 
 	if (FAILED(hr)) return false;
 
@@ -353,7 +353,7 @@ bool PMDActor::Load(const char* filepath) {
 	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
 	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = 1 + materialNum * MATERIAL_MULTIPLIER; // 先頭に WVP 用 CBV + マテリアル数4つ分
+	descHeapDesc.NumDescriptors = materialNum * MATERIAL_MULTIPLIER; // マテリアルと拡張テクスチャ数
 	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
 	result = _dx12.Device()->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&_basicDescHeap));
@@ -361,15 +361,6 @@ bool PMDActor::Load(const char* filepath) {
 
 	// ディスクリプタの先頭ハンドルを取得しておく
 	auto basicHeapHandle = _basicDescHeap->GetCPUDescriptorHandleForHeapStart();
-
-	// CBV
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = _constBuff->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = static_cast<UINT>(_constBuff->GetDesc().Width);
-	_dx12.Device()->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
-	// 次の場所に移動する
-	basicHeapHandle.ptr += _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
 
 	auto inc = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	_whiteTex = _dx12.CreateSolidColorTexture(0xff, 0xff, 0xff);
@@ -447,36 +438,35 @@ bool PMDActor::Load(const char* filepath) {
 	}
 	return true;
 };
-void PMDActor::Update(const XMMATRIX& view, const XMMATRIX& proj) {
+void PMDActor::Update() {
 	angle += 0.01f;
 	_worldMatrix = XMMatrixRotationY(angle);
-	_mapMatrix->world = _worldMatrix;
-	_mapMatrix->view = view;
-	_mapMatrix->proj = proj;
+	_mappedTransform ->world = _worldMatrix;
 };
 void PMDActor::Draw() {
 	// ========= 実際の描画 =========
 	auto cmdList = _dx12.CommandList();
+
+	// ワールド行列（b2）をルートCBVで直接渡す
+	cmdList->SetGraphicsRootConstantBufferView(2, _transformBuff->GetGPUVirtualAddress());
+
 	// テクスチャCBV（ヒープ）のセット
-	auto descHeapH = _basicDescHeap->GetGPUDescriptorHandleForHeapStart();
 	ID3D12DescriptorHeap* ppHeaps[] = { _basicDescHeap.Get() };
 	cmdList->SetDescriptorHeaps(1, ppHeaps);
-	cmdList->SetGraphicsRootDescriptorTable(0, descHeapH);
-	// 進める
-	descHeapH.ptr += _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	auto descHeapH = _basicDescHeap->GetGPUDescriptorHandleForHeapStart();
 
 	// ジオメトリのセットと描画
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmdList->IASetVertexBuffers(0, 1, &vbView);
 	cmdList->IASetIndexBuffer(&ibView);
 
-	// 4倍
-	auto cbvsrvIncSize = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * MATERIAL_MULTIPLIER;
+	auto cbvsrvIncSize = _dx12.Device()->GetDescriptorHandleIncrementSize(
+		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV
+	) * MATERIAL_MULTIPLIER;
 	unsigned int idxOffset = 0;
 	for (auto& m : materials) {
 		cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);
 		cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
-
 		// ヒープポインターとインデックスを次に進める
 		descHeapH.ptr += cbvsrvIncSize;
 		idxOffset += m.indicesNum;

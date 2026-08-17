@@ -24,13 +24,11 @@ struct PMDHeader
 	char comment[256];	// モデルコメント
 };
 
-// シェーダー側に渡すための基本的な環境データ
-struct SceneMatrix
+// シェーダーに渡す座標データ
+struct Transform
 {
 	DirectX::XMMATRIX world;
-	DirectX::XMMATRIX view;
-	DirectX::XMMATRIX proj;
-	DirectX::XMMATRIX eye;	// 視点座標
+	// 将来ここにボーン行列 XMMATRIX bones[256] が入る
 };
 
 struct PMDVertex
@@ -53,7 +51,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _basicDescHeap = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _vertBuff = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _idxBuff = nullptr;
-	Microsoft::WRL::ComPtr<ID3D12Resource> _constBuff = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _transformBuff  = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _materialBuff = nullptr;
 	std::map<std::string, Microsoft::WRL::ComPtr<ID3D12Resource>> _resourceTable;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _whiteTex = nullptr;
@@ -61,15 +59,14 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> _grayGradationTex = nullptr;
 	unsigned int indicesNum = 0;	// このマテリアルが割り当てられるインデックス数
 	std::vector<Material> materials = {};
-	SceneMatrix* _mapMatrix = nullptr;
+	Transform* _mappedTransform = nullptr;
 	float angle = 0.0f;
 	DirectX::XMMATRIX _worldMatrix = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
 public:
 	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
-	SceneMatrix* MapMatrix() const { return _mapMatrix; }
     bool Load(const char* filepath);
-    void Update(const DirectX::XMMATRIX& view, const DirectX::XMMATRIX& proj);
+    void Update();
     void Draw();
 	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(
 		const std::string& filePath

@@ -2,6 +2,7 @@
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"
+#include "Scene.h"
 #include <tchar.h>
 using namespace DirectX;
 
@@ -62,25 +63,9 @@ bool Application::Init() {
 		_pmdActor.reset(new PMDActor(*_dx12));
 		_pmdActor->Load("Model/初音ミク.pmd");
 		_pmdRenderer->AddActor(_pmdActor.get());
+		_scene.reset(new Scene(*_dx12));
+		if (!_scene->Init(window_width, window_height)) return false;
 	#pragma endregion 3. パイプラインの構築
-
-	#pragma region 4. アセットの作成とデータ転送
-
-		// ビュー行列
-		XMFLOAT3 eye(0, 15, -15);
-		XMFLOAT3 target(0, 10, 0);
-		XMFLOAT3 up(0, 1, 0);
-		viewMat = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
-
-		//プロジェクション行列
-		projMat = XMMatrixPerspectiveFovLH(
-			XM_PIDIV2,
-			static_cast<float>(window_width) / static_cast<float>(window_height),
-			1.0f, // 近いクリップ面距離
-			100.0f // 遠いクリップ面距離
-		);
-
-	#pragma endregion region 4. アセットの作成とデータ転送
 	return true;
 }
 
@@ -111,12 +96,15 @@ void Application::Run()
 		else
 		{
 			// 本当は論理フレームループ
-			_pmdActor->Update(viewMat, projMat);
+			_pmdActor->Update();
+
+			/*_mapMatrix->view = view;
+			_mapMatrix->proj = proj;*/
 
 			// 本当は描画フレームループ
 			// ========= 描画前処理 =========
 			_dx12->BeginDraw();
-			_pmdRenderer->Draw();
+			_pmdRenderer->Draw(*_scene);
 			// ========= 描画後処理とGPU同期 =========
 			_dx12->EndDraw();
 		}

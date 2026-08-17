@@ -3,14 +3,14 @@
 
 #include <Windows.h>
 #include <tchar.h> // _T マクロ用
-#include <d3d12.h>
-#include <dxgi1_6.h>
 #include <vector>
 #include <wrl/client.h> // ComPtr用
 #include <string>
+#include <d3d12.h>
+#include <dxgi1_6.h>
 #include <DirectXMath.h>
-#include <d3dcompiler.h>
 #include <DirectXTex.h>
+#include <d3dcompiler.h>
 #include <sstream>
 #include <filesystem>
 #include <algorithm>
@@ -18,10 +18,10 @@
 #include <map>
 
 #include "d3dx12.h"
-#include "Application.h"
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"
+#include "Scene.h"
 
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -85,44 +85,46 @@ bool PMDRenderer::Init()
 
 		// ルートシグネチャの作成
 		// ディスクリプタレンジ
-		D3D12_DESCRIPTOR_RANGE descTblRange[3] = {};
-		// [0] b0 座標変換        … basicDescHeap の 1 番
-		// [1] b1 マテリアル      … materialDescHeap
-		// [2] b1 テクスチャ（マテリアルとペア）      … materialDescHeap
-
-
-		// 座標変換用
-		descTblRange[0].NumDescriptors = 1; // 定数1つ
+		D3D12_DESCRIPTOR_RANGE descTblRange[2] = {};
+		// [0] b1 マテリアル
+		descTblRange[0].NumDescriptors = 1; // ディスクリプタヒープは複数だが一度に使うのは1つ
 		descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
-		descTblRange[0].BaseShaderRegister = 0; // 0番スロットから
+		descTblRange[0].BaseShaderRegister = 1; // 1番スロットから
 		descTblRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		// マテリアル
-		descTblRange[1].NumDescriptors = 1; // ディスクリプタヒープは複数だが一度に使うのは1つ
-		descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
-		descTblRange[1].BaseShaderRegister = 1; // 1番スロットから
-		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		// テクスチャ（マテリアルとペア）
-		descTblRange[2].NumDescriptors = MATERIAL_MULTIPLIER - 1; // テクスチャ2つ(基本とsphとspa)
-		descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // 種別はテクスチャ
-		descTblRange[2].BaseShaderRegister = 0; // 0番スロットから
-		descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		D3D12_ROOT_PARAMETER rootparam[2] = {};
-		rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootparam[0].DescriptorTable.pDescriptorRanges = &descTblRange[0];
-		rootparam[0].DescriptorTable.NumDescriptorRanges = 1;
+		// [1] t0..t3 テクスチャ
+		descTblRange[1].NumDescriptors = MATERIAL_MULTIPLIER - 1; // マテリアルとテクスチャの合計値からマテリアル1つだけ引く
+		descTblRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // 種別はテクスチャ
+		descTblRange[1].BaseShaderRegister = 0; // 0番スロットから
+		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+
+		D3D12_ROOT_PARAMETER rootparam[3] = {};
+		// [0] b0 シーン ＝ ルートCBV（テーブルではない）
+		rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootparam[0].Descriptor.ShaderRegister = 0;
+		rootparam[0].Descriptor.RegisterSpace = 0;
 		rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+		// [1] マテリアル＋テクスチャ ＝ テーブル
 		rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		rootparam[1].DescriptorTable.pDescriptorRanges = &descTblRange[1];
+		rootparam[1].DescriptorTable.pDescriptorRanges = &descTblRange[0];
 		rootparam[1].DescriptorTable.NumDescriptorRanges = 2;
-		rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;//ピクセルシェーダーから見える
+		rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+		// [2] b2 ワールド行列 ＝ ルートCBV
+		rootparam[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		rootparam[2].Descriptor.ShaderRegister = 2;
+		rootparam[2].Descriptor.RegisterSpace = 0;
+		rootparam[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 
 		// ルートシグネチャ
 		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 		rootSignatureDesc.pParameters = rootparam;
-		rootSignatureDesc.NumParameters = 2;
+		rootSignatureDesc.NumParameters = 3;
 
 		//サンプラーの設定
 		D3D12_STATIC_SAMPLER_DESC samplerDesc[2] = {};
@@ -267,13 +269,15 @@ bool PMDRenderer::Init()
 	}
 
 // 描画コマンドの積み込み
-void PMDRenderer::Draw()
+void PMDRenderer::Draw(const Scene& scene)
 {
 	auto cmdList = _dx12.CommandList();
 
 	// パイプラインの設定
 	cmdList->SetPipelineState(_pipelineState.Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+
+	cmdList->SetGraphicsRootConstantBufferView(0, scene.SceneCBAddress());
 
 	for (auto& actor : _actors) actor->Draw();
 }

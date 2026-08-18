@@ -3,7 +3,7 @@
 `core/` は Gregory 曲面プロジェクトの `src/core/` をそのままコピーしたもの。
 GL にもアプリにも依存せず、glm だけに依存する。
 
-- 元リポジトリ: https://github.com/C4P3/Gregory（リアルタイム Gregory 曲面描画パイプライン）
+- 元リポジトリ: https://github.com/C4P3/Gregory （リアルタイム Gregory 曲面描画パイプライン）
 - コピー元のコミット: `f8fbaa4`
 - コピーした日: 2026-08-17
 

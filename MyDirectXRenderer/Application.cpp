@@ -83,7 +83,7 @@ bool Application::Init() {
 	ImGui_ImplDX12_InitInfo imgui_init_info = {};
 	imgui_init_info.Device = _dx12->Device();
 	imgui_init_info.NumFramesInFlight = 2;// ワップチェーンのバックバッファの数 CPUがGPUを待たずに何フレーム分先まで走ってよいか
-	imgui_init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	imgui_init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	imgui_init_info.SrvDescriptorHeap = _dx12->GetHeapForImgui().Get();
 	imgui_init_info.LegacySingleSrvCpuDescriptor = _dx12->GetHeapForImgui().Get()->GetCPUDescriptorHandleForHeapStart();
 	imgui_init_info.LegacySingleSrvGpuDescriptor = _dx12->GetHeapForImgui().Get()->GetGPUDescriptorHandleForHeapStart();
@@ -162,6 +162,9 @@ void Application::Run()
 void Application::Terminate()
 {
 	UnregisterClass(_windowClass.lpszClassName, _windowClass.hInstance);
+	ImGui_ImplDX12_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
 }
 
 Application& Application::Instance()

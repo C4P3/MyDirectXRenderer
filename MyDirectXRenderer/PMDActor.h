@@ -2,6 +2,7 @@
 
 #include <d3d12.h>
 #include <vector>
+#include <array>
 #include <string>          // ← AdditionalMaterial::texPath 用
 #include <map>
 #include <DirectXMath.h>   // ← XMFLOAT3 用
@@ -28,7 +29,7 @@ struct PMDHeader
 struct Transform
 {
 	DirectX::XMMATRIX world;
-	// 将来ここにボーン行列 XMMATRIX bones[256] が入る
+	std::array<DirectX::XMMATRIX, 256> bones;
 };
 
 struct PMDVertex
@@ -42,6 +43,13 @@ struct PMDVertex
 	unsigned char padding[2];	// 明示的に2バイト埋める (合計40バイト)
 };
 
+struct BoneNode
+{
+	int boneIdx;		// ボーンインデックス
+	DirectX::XMFLOAT3 startPos;	// ボーン基準点（回転の中心）
+	DirectX::XMFLOAT3 endPos;	// ボーン先端点（実際のスキニングには利用しない）
+	std::vector<BoneNode*> children;	// 子ノード
+};
 
 class PMDActor {
 private:
@@ -62,9 +70,14 @@ private:
 	Transform* _mappedTransform = nullptr;
 	float angle = 0.0f;
 	DirectX::XMMATRIX _worldMatrix = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
+	std::vector<DirectX::XMMATRIX> _boneMatrices = {};
+	std::map<std::string, BoneNode> _boneNodeTable = {};
+
+	void RecursiveMatrixMultiply(const BoneNode* node, const DirectX::XMMATRIX& mat);
 public:
 	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
+
     bool Load(const char* filepath);
     void Update();
     void Draw();

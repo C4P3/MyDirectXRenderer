@@ -59,6 +59,17 @@ struct PMDMaterial_Raw
 	unsigned int indicesNum;	// このマテリアルが割り当てられるインデックス数
 	char texFilePath[20];	// テクスチャファイルパス
 }; // 70バイト
+
+// 読み込み用ボーン構造体
+struct PMDBone
+{
+	char boneName[20];			// ボーン名
+	unsigned short parentNo;	// 親ボーン番号
+	unsigned short nextNo;		// 先端のボーン番号
+	unsigned char type;			// ボーン種別
+	unsigned short ikBoneNo;	// IK ボーン番号
+	XMFLOAT3 pos;				// ボーンの基準点座標
+};
 #pragma pack(pop) // 元のアライメント設定に戻す
 
 // パス合成関数
@@ -181,11 +192,14 @@ bool PMDActor::Load(const char* filepath) {
 	std::vector<unsigned short> indices;
 	unsigned int materialNum; // マテリアル数
 	std::vector<PMDMaterial_Raw> rawPmdMaterials;
+	unsigned short boneNum = 0;
+	std::vector<PMDBone> pmdBones;
 
 	std::string strModelPath = filepath;
 	FILE* fp;
 	fopen_s(&fp, strModelPath.c_str(), "rb");
 	if (fp == nullptr) return false;
+
 	fread(signature, 3, 1, fp);
 	fread(&pmdheader, sizeof(pmdheader), 1, fp);
 
@@ -196,9 +210,15 @@ bool PMDActor::Load(const char* filepath) {
 	fread(&indicesNum, sizeof(indicesNum), 1, fp);
 	indices.resize(indicesNum);
 	fread(indices.data(), indices.size() * sizeof(unsigned short), 1, fp);
+
 	fread(&materialNum, sizeof(materialNum), 1, fp);
 	rawPmdMaterials.resize(materialNum);
 	fread(rawPmdMaterials.data(), rawPmdMaterials.size() * sizeof(PMDMaterial_Raw), 1, fp);
+
+	fread(&boneNum, sizeof(boneNum), 1, fp);
+	pmdBones.resize(boneNum);
+	fread(pmdBones.data(), sizeof(PMDBone), boneNum, fp);
+
 	fclose(fp);
 
 	// 入力レイアウトに R32G32B32_FLOAT（4バイト単位の型）が入っているので、
@@ -271,6 +291,40 @@ bool PMDActor::Load(const char* filepath) {
 		toonPath[i] = toonFilePath;
 	}
 
+	// インデックスと名前の対応関係構築のためにあとで使う
+	std::vector<std::string> boneNames(pmdBones.size());
+
+	// ボーンノードマップを作る
+	for (int idx = 0; idx < pmdBones.size(); ++idx) {
+		auto& pb = pmdBones[idx];
+		boneNames[idx] = pb.boneName;
+		auto& node = _boneNodeTable[pb.boneName];
+		node.boneIdx = idx;
+		node.startPos = pb.pos;
+	}
+
+	// 親子関係を構築する
+	for (auto& pb : pmdBones)
+	{
+		// 親インデックスをチェック（あり得ない番号なら飛ばす）
+		if (pb.parentNo >= pmdBones.size())
+		{
+			continue;
+		}
+		auto parentName = boneNames[pb.parentNo];
+		_boneNodeTable[parentName].children.emplace_back(
+			&_boneNodeTable[pb.boneName]
+		);
+	}
+	_boneMatrices.resize(pmdBones.size());
+
+	// ボーンを全て初期化する
+	std::fill(
+		_boneMatrices.begin(),
+		_boneMatrices.end(),
+		XMMatrixIdentity()
+	);
+
 	_vertBuff = _dx12.CreateBuffer(vertices.size() * vert_gpu_size, vertices.data());
 	_idxBuff = _dx12.CreateBuffer(indices.size() * sizeof(unsigned short), indices.data());
 
@@ -287,7 +341,7 @@ bool PMDActor::Load(const char* filepath) {
 
 	XMMATRIX matrix = XMMatrixIdentity();
 
-	// 1. 定数バッファの作成して中身をマップで書き換える（バッファサイズ: 256バイト、コピー元サイズ: sizeof(matrix) = 64バイト）
+	// 1. 定数バッファの作成して中身をマップで書き換える
 	size_t cbSize = (sizeof(Transform) + 255) & ~255; // 256バイトアライメント
 
 	// 定数バッファ
@@ -309,6 +363,31 @@ bool PMDActor::Load(const char* filepath) {
 	hr = _transformBuff ->Map(0, &readRange, (void**)&_mappedTransform );
 
 	if (FAILED(hr)) return false;
+
+
+	const auto& armNode = _boneNodeTable.at("左腕");
+	const auto& armpos = armNode.startPos;
+	auto armMat =
+		XMMatrixTranslation(-armpos.x, -armpos.y, -armpos.z)
+		* XMMatrixRotationZ(XM_PIDIV2)
+		* XMMatrixTranslation(armpos.x, armpos.y, armpos.z);
+
+	const auto& elbowNode = _boneNodeTable.at("左ひじ");
+	const auto& elbowpos = elbowNode.startPos;
+	auto elbowMat =
+		XMMatrixTranslation(-elbowpos.x, -elbowpos.y, -elbowpos.z)
+		* XMMatrixRotationZ(-XM_PIDIV2)
+		* XMMatrixTranslation(elbowpos.x, elbowpos.y, elbowpos.z);
+	_boneMatrices[armNode.boneIdx] = armMat;
+	_boneMatrices[elbowNode.boneIdx] = elbowMat;
+
+	RecursiveMatrixMultiply(&_boneNodeTable["センター"], XMMatrixIdentity());
+
+
+	// データのコピー
+	_mappedTransform->world = _worldMatrix;
+	assert(pmdBones.size() <= 256);
+	std::copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedTransform->bones.begin());
 
 	// マテリアル用バッファー
 	auto materialBuffSize = sizeof(MaterialForHlsl);
@@ -468,3 +547,15 @@ void PMDActor::Draw() {
 		idxOffset += m.indicesNum;
 	}
 };
+
+void PMDActor::RecursiveMatrixMultiply(
+	const BoneNode* node, const DirectX::XMMATRIX& mat
+)
+{
+	_boneMatrices[node->boneIdx] *= mat;
+
+	for (const auto& cnode : node->children)
+	{
+		RecursiveMatrixMultiply(cnode, _boneMatrices[node->boneIdx]);
+	}
+}

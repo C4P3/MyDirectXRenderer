@@ -35,5 +35,6 @@ cbuffer Material : register(b1)
 
 cbuffer Transform : register(b2)
 {
-    matrix world;
+    matrix world;   // ワールド変換行列
+    matrix bones[256];  // ボーン行列
 };

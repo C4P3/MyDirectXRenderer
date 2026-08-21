@@ -22,6 +22,7 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "DirectXTex.lib")
 #pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "winmm.lib")
 
 #ifdef _DEBUG
 #include <iostream>
@@ -69,6 +70,15 @@ struct PMDBone
 	unsigned char type;			// ボーン種別
 	unsigned short ikBoneNo;	// IK ボーン番号
 	XMFLOAT3 pos;				// ボーンの基準点座標
+};
+
+struct VMDMotion_Raw
+{
+	char boneName[15];	// ボーン名
+	unsigned int frameNo;// フレーム番号
+	XMFLOAT3 location;	// 位置
+	XMFLOAT4 quaternion;	// クォータニオン
+	unsigned char bezier[64]; // ベジェ補間パラメータ
 };
 #pragma pack(pop) // 元のアライメント設定に戻す
 
@@ -180,7 +190,84 @@ ComPtr<ID3D12Resource> PMDActor::LoadTextureFromFile(
 	);
 }
 
+bool PMDActor::VMDMotionLoad(const char* filepath) {
+	unsigned int motionDataNum = 0;
+	std::vector<VMDMotion_Raw> vmdMotionData_Raw;
+
+	std::string strModelPath = filepath;
+	FILE* fp;
+	fopen_s(&fp, strModelPath.c_str(), "rb");
+	if (fp == nullptr) return false;
+
+	fseek(fp, 50, SEEK_SET); // 50バイト飛ばす
+
+	fread(&motionDataNum, sizeof(motionDataNum), 1, fp);
+	vmdMotionData_Raw.resize(motionDataNum);
+	cout << "MotionDataNum: " << motionDataNum << '\n';
+	fread(vmdMotionData_Raw.data(), vmdMotionData_Raw.size() * sizeof(VMDMotion_Raw), 1, fp);
+
+	fclose(fp);
+
+	for (auto& vmdMotion : vmdMotionData_Raw) {
+		_motiondata[std::string(vmdMotion.boneName, strnlen(vmdMotion.boneName, 15))].emplace_back(
+			vmdMotion.frameNo, XMLoadFloat4(&vmdMotion.quaternion)
+		);
+	}
+
+	return true;
+}
+void PMDActor::PlayAnimation() {
+	DWORD elapsedTime = timeGetTime() - _startTime; // 経過時間
+	unsigned int frameNo = elapsedTime / 1000.0f;
+	
+	// 行列情報クリア
+	std::fill(_boneMatrices.begin(), _boneMatrices.end(), XMMatrixIdentity());
+
+	// モーションデータ更新
+	for (auto& bonemotion : _motiondata)
+	{
+		auto node = _boneNodeTable[bonemotion.first];
+
+		// 合致するものを探す
+		auto motions = bonemotion.second;
+		auto rit = std::find_if(
+			motions.rbegin(), motions.rend(),
+			[frameNo](const KeyFrame& motion)
+			{
+				return motion.frameNo <= frameNo;
+			}
+		);
+
+		// 合致するものがなければ飛ばす
+		if (rit == motions.rend()) continue;
+
+		XMMATRIX rotation;
+		auto it = rit.base();
+		if (it != motions.end())
+		{
+			auto t = static_cast<float>(elapsedTime / 1000.0f - (float) rit->frameNo)
+				/ static_cast<float>(it->frameNo - rit->frameNo);
+			rotation = XMMatrixRotationQuaternion(XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
+		}
+		else
+		{
+			rotation = XMMatrixRotationQuaternion(rit->quaternion);
+		}
+
+		auto& pos = node.startPos;
+		auto mat = XMMatrixTranslation(-pos.x, -pos.y, -pos.z)
+			* rotation	// 回転する
+			* XMMatrixTranslation(pos.x, pos.y, pos.z);
+		_boneMatrices[node.boneIdx] = mat;
+	}
+
+	RecursiveMatrixMultiply(&_boneNodeTable["センター"], XMMatrixIdentity());
+	std::copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedTransform->bones.begin());
+}
+
 bool PMDActor::Load(const char* filepath) {
+	VMDMotionLoad("Motion/TestMotion.vmd");
+
 	// PMD
 	char signature[4] = {}; // 先頭3バイトは文字列"pmd"
 	PMDHeader pmdheader;
@@ -365,25 +452,6 @@ bool PMDActor::Load(const char* filepath) {
 	if (FAILED(hr)) return false;
 
 
-	const auto& armNode = _boneNodeTable.at("左腕");
-	const auto& armpos = armNode.startPos;
-	auto armMat =
-		XMMatrixTranslation(-armpos.x, -armpos.y, -armpos.z)
-		* XMMatrixRotationZ(XM_PIDIV2)
-		* XMMatrixTranslation(armpos.x, armpos.y, armpos.z);
-
-	const auto& elbowNode = _boneNodeTable.at("左ひじ");
-	const auto& elbowpos = elbowNode.startPos;
-	auto elbowMat =
-		XMMatrixTranslation(-elbowpos.x, -elbowpos.y, -elbowpos.z)
-		* XMMatrixRotationZ(-XM_PIDIV2)
-		* XMMatrixTranslation(elbowpos.x, elbowpos.y, elbowpos.z);
-	_boneMatrices[armNode.boneIdx] = armMat;
-	_boneMatrices[elbowNode.boneIdx] = elbowMat;
-
-	RecursiveMatrixMultiply(&_boneNodeTable["センター"], XMMatrixIdentity());
-
-
 	// データのコピー
 	_mappedTransform->world = _worldMatrix;
 	assert(pmdBones.size() <= 256);
@@ -511,12 +579,15 @@ bool PMDActor::Load(const char* filepath) {
 		}
 		basicHeapHandle.ptr += inc;
 	}
+
+	_startTime = timeGetTime();
 	return true;
 };
 void PMDActor::Update() {
+	PlayAnimation();
 	angle += 0.01f;
 	_worldMatrix = XMMatrixRotationY(angle);
-	_mappedTransform ->world = _worldMatrix;
+	_mappedTransform->world = _worldMatrix;
 };
 void PMDActor::Draw() {
 	// ========= 実際の描画 =========

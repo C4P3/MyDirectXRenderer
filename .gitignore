@@ -51,6 +51,7 @@ $RECYCLE.BIN/
 
 # ---- 3Dアセット ----
 *.pmd
+*.vmd
 *.sph
 *.spa
 *.bmp

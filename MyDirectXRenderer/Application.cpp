@@ -104,6 +104,9 @@ bool Application::Init() {
 	else {
 		_pmdActor.reset();   // Update() の呼び出し側でも null チェック
 	}
+	// VMD アニメーション
+	_pmdActor->VMDMotionLoad("Motion/motion.vmd");
+
 
 	// gregory
 	_gregoryRenderer.reset(new GregoryRenderer(*_dx12));

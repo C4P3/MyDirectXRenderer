@@ -56,11 +56,13 @@ struct KeyFrame
 {
 	unsigned int frameNo;	// アニメーション開始からのフレーム数
 	DirectX::XMVECTOR quaternion;	// クォータニオン
+	DirectX::XMFLOAT2 p1, p2;	// ベジェ曲線の中間コントロールポイント
 
 	// const を追加して一時オブジェクトを受け取れるようにする
 	// （DirectXMathの最適化に合わせるなら const DirectX::XMVECTOR& の代わりに DirectX::FXMVECTOR も可）
-	KeyFrame(unsigned int fno, const DirectX::XMVECTOR& q)
-		: frameNo(fno), quaternion(q)
+	KeyFrame(unsigned int fno, const DirectX::XMVECTOR& q,
+			const DirectX::XMFLOAT2& ip1, const DirectX::XMFLOAT2& ip2)
+		: frameNo(fno), quaternion(q), p1(ip1), p2(ip2)
 	{}
 };
 
@@ -87,14 +89,16 @@ private:
 	std::map<std::string, BoneNode> _boneNodeTable = {};
 	std::unordered_map<std::string, std::vector<KeyFrame>> _motiondata;
 	DWORD _startTime;	// アニメーション開始のミリ秒
+	unsigned int _duration = 0;
 
 	void RecursiveMatrixMultiply(const BoneNode* node, const DirectX::XMMATRIX& mat);
-	bool VMDMotionLoad(const char* filepath);
+	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
 public:
 	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
 
     bool Load(const char* filepath);
+	bool VMDMotionLoad(const char* filepath);
     void Update();
     void Draw();
 	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(

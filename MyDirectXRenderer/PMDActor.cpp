@@ -210,15 +210,80 @@ bool PMDActor::VMDMotionLoad(const char* filepath) {
 
 	for (auto& vmdMotion : vmdMotionData_Raw) {
 		_motiondata[std::string(vmdMotion.boneName, strnlen(vmdMotion.boneName, 15))].emplace_back(
-			vmdMotion.frameNo, XMLoadFloat4(&vmdMotion.quaternion)
+			vmdMotion.frameNo, XMLoadFloat4(&vmdMotion.quaternion),
+			XMFLOAT2((float)vmdMotion.bezier[3] / 127.0f, (float)vmdMotion.bezier[7] / 127.0f),
+			XMFLOAT2((float)vmdMotion.bezier[11] / 127.0f, (float)vmdMotion.bezier[15] / 127.0f)
+		);
+
+		// 総フレーム数獲得
+		_duration = std::max<unsigned int>(_duration, vmdMotion.frameNo);
+
+	}
+
+	// モーションデータをソート
+	for (auto& motion : _motiondata)
+	{
+		std::sort(
+			motion.second.begin(), motion.second.end(),
+			[](const KeyFrame& lval, const KeyFrame& rval)
+			{
+				return lval.frameNo < rval.frameNo;
+			}
 		);
 	}
 
+
 	return true;
 }
+
+float PMDActor::GetYFromXOnBezier(
+	float x, const XMFLOAT2& a, const XMFLOAT2& b, uint8_t n
+) {
+	if (a.x == a.y && b.x == b.y)
+	{
+		return x; // 計算不要
+	}
+
+	float t = x;
+	const float k0 = 1 + 3 * a.x - 3 * b.x; // t^3の係数
+	const float k1 = 3 * b.x - 6 * a.x;		// t^2の係数
+	const float k2 = 3 * a.x;				// tの係数
+
+	// 誤差の範囲内かどうかに使用する定数
+	constexpr float epsilon = 0.0005f;
+
+	// tを近似で求める
+	for (int i = 0; i < n; ++i)
+	{
+		// f(t)を求める
+		auto ft = k0 * t * t * t + k1 * t * t + k2 * t - x;
+
+		// もし結果が0に近い（誤差の範囲内）なら打ち切る
+		if (ft <= epsilon && ft >= -epsilon)
+		{
+			break;
+		}
+
+		t -= ft / 2; //刻む
+	}
+
+	// 求めたい t はすでに求めているので y を計算する
+	auto r = 1 - t;
+	return t * t * t + 3 * t * t * r * b.y + 3 * t * r * r * a.y;
+}
+
 void PMDActor::PlayAnimation() {
 	DWORD elapsedTime = timeGetTime() - _startTime; // 経過時間
-	unsigned int frameNo = elapsedTime / 1000.0f;
+
+	// 1. 小数精度での現在のフレームを計算
+	float currentFrame = (elapsedTime / 1000.0f) * 30.0f;
+	// ループ
+	if (static_cast<unsigned int>(currentFrame) > _duration) {
+		_startTime = timeGetTime();
+		currentFrame = 0.0f;
+	}
+	// 検索やループ判定用に整数化
+	unsigned int frameNo = static_cast<unsigned int>(currentFrame);
 	
 	// 行列情報クリア
 	std::fill(_boneMatrices.begin(), _boneMatrices.end(), XMMatrixIdentity());
@@ -226,7 +291,10 @@ void PMDActor::PlayAnimation() {
 	// モーションデータ更新
 	for (auto& bonemotion : _motiondata)
 	{
-		auto node = _boneNodeTable[bonemotion.first];
+		auto itBoneNode = _boneNodeTable.find(bonemotion.first);
+		if (itBoneNode == _boneNodeTable.end()) continue;
+
+		auto& node = itBoneNode->second;
 
 		// 合致するものを探す
 		auto motions = bonemotion.second;
@@ -243,10 +311,16 @@ void PMDActor::PlayAnimation() {
 
 		XMMATRIX rotation;
 		auto it = rit.base();
-		if (it != motions.end())
+
+
+		// 2. 補間係数 t の計算をシンプル化し、ゼロ除算を防止
+		if (it != motions.end() && it->frameNo > rit->frameNo)
 		{
-			auto t = static_cast<float>(elapsedTime / 1000.0f - (float) rit->frameNo)
+			// (現在の小数フレーム - 前のキーフレーム) / (次のキーフレーム - 前のキーフレーム)
+			float t = (currentFrame - static_cast<float>(rit->frameNo))
 				/ static_cast<float>(it->frameNo - rit->frameNo);
+			t = std::clamp(t, 0.0f, 1.0f);
+			t = GetYFromXOnBezier(t, it->p1, it->p2, 12);
 			rotation = XMMatrixRotationQuaternion(XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
 		}
 		else
@@ -266,8 +340,6 @@ void PMDActor::PlayAnimation() {
 }
 
 bool PMDActor::Load(const char* filepath) {
-	VMDMotionLoad("Motion/TestMotion.vmd");
-
 	// PMD
 	char signature[4] = {}; // 先頭3バイトは文字列"pmd"
 	PMDHeader pmdheader;

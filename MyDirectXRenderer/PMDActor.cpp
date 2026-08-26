@@ -461,12 +461,26 @@ bool PMDActor::VMDMotionLoad(const char* filepath) {
 	fclose(fp);
 
 	for (auto& vmdMotion : vmdMotionData_Raw) {
-		_motiondata[std::string(vmdMotion.boneName, strnlen(vmdMotion.boneName, 15))].emplace_back(
-			vmdMotion.frameNo, XMLoadFloat4(&vmdMotion.quaternion),
-			vmdMotion.location,
-			XMFLOAT2((float)vmdMotion.bezier[3] / 127.0f, (float)vmdMotion.bezier[7] / 127.0f),
-			XMFLOAT2((float)vmdMotion.bezier[11] / 127.0f, (float)vmdMotion.bezier[15] / 127.0f)
+		auto p1 = [&](int ch) {
+			return XMFLOAT2(vmdMotion.bezier[ch] / 127.0f, vmdMotion.bezier[ch + 4] / 127.0f);
+			};
+		auto p2 = [&](int ch) {
+			return XMFLOAT2(vmdMotion.bezier[ch + 8] / 127.0f, vmdMotion.bezier[ch + 12] / 127.0f);
+			};
+
+		KeyFrame kf(
+			vmdMotion.frameNo, 
+			XMLoadFloat4(&vmdMotion.quaternion),
+			vmdMotion.location, 
+			p1(3), p2(3)   // 回転
 		);
+		for (int ch = 0; ch < 3; ++ch) {
+			kf.tp1[ch] = p1(ch);
+			kf.tp2[ch] = p2(ch);
+		}
+
+		_motiondata[std::string(vmdMotion.boneName, strnlen(vmdMotion.boneName, 15))]
+			.emplace_back(kf);
 
 		// 総フレーム数獲得
 		_duration = std::max<unsigned int>(_duration, vmdMotion.frameNo);
@@ -740,7 +754,7 @@ void PMDActor::PlayAnimation() {
 		auto& node = itBoneNode->second;
 
 		// 合致するものを探す
-		auto motions = bonemotion.second;
+		auto& motions = bonemotion.second;
 		auto rit = std::find_if(
 			motions.rbegin(), motions.rend(),
 			[frameNo](const KeyFrame& motion)
@@ -755,20 +769,34 @@ void PMDActor::PlayAnimation() {
 		XMMATRIX rotation;
 		auto it = rit.base();
 
+		XMFLOAT3 offsetVal;
 
 		// 2. 補間係数 t の計算をシンプル化し、ゼロ除算を防止
 		if (it != motions.end() && it->frameNo > rit->frameNo)
 		{
 			// (現在の小数フレーム - 前のキーフレーム) / (次のキーフレーム - 前のキーフレーム)
-			float t = (currentFrame - static_cast<float>(rit->frameNo))
+			float rawT = (currentFrame - static_cast<float>(rit->frameNo))
 				/ static_cast<float>(it->frameNo - rit->frameNo);
-			t = std::clamp(t, 0.0f, 1.0f);
-			t = GetYFromXOnBezier(t, it->p1, it->p2, 12);
-			rotation = XMMatrixRotationQuaternion(XMQuaternionSlerp(rit->quaternion, it->quaternion, t));
+			rawT = std::clamp(rawT, 0.0f, 1.0f);
+
+			// 回転
+			float tr = GetYFromXOnBezier(rawT, it->p1, it->p2, 12);
+			rotation = XMMatrixRotationQuaternion(XMQuaternionSlerp(rit->quaternion, it->quaternion, tr));
+
+			// 移動：軸ごとに別のカーブ
+			float tx = GetYFromXOnBezier(rawT, it->tp1[0], it->tp2[0], 12);
+			float ty = GetYFromXOnBezier(rawT, it->tp1[1], it->tp2[1], 12);
+			float tz = GetYFromXOnBezier(rawT, it->tp1[2], it->tp2[2], 12);
+
+			offsetVal = XMFLOAT3(
+				rit->offset.x + (it->offset.x - rit->offset.x) * tx,
+				rit->offset.y + (it->offset.y - rit->offset.y) * ty,
+				rit->offset.z + (it->offset.z - rit->offset.z) * tz);
 		}
 		else
 		{
 			rotation = XMMatrixRotationQuaternion(rit->quaternion);
+			offsetVal = rit->offset;
 		}
 
 		auto& pos = node.startPos;
@@ -776,10 +804,8 @@ void PMDActor::PlayAnimation() {
 			* rotation	// 回転する
 			* XMMatrixTranslation(pos.x, pos.y, pos.z);
 
-		XMVECTOR offset = XMLoadFloat3(&rit->offset);
-		// 次キーがあれば XMVectorLerp(offset, XMLoadFloat3(&it->offset), t)
 
-		_boneMatrices[node.boneIdx] = mat * XMMatrixTranslationFromVector(offset);
+		_boneMatrices[node.boneIdx] = mat * XMMatrixTranslationFromVector(XMLoadFloat3(&offsetVal));
 	}
 
 	RecursiveMatrixMultiply(&_boneNodeTable["センター"], XMMatrixIdentity());

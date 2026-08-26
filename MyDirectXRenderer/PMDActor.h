@@ -64,25 +64,33 @@ struct PMDIK
 
 struct KeyFrame
 {
-	unsigned int frameNo;		// アニメーション開始からのフレーム数
+	unsigned int frameNo;			// アニメーション開始からのフレーム数
 	DirectX::XMVECTOR quaternion;	// クォータニオン
-	DirectX::XMFLOAT3 offset;	// IKの初期座標からのオフセット情報
-	DirectX::XMFLOAT2 p1, p2;	// ベジェ曲線の中間コントロールポイント
+	DirectX::XMFLOAT3 offset;		// IKの初期座標からのオフセット情報
+	DirectX::XMFLOAT2 p1, p2;			// 回転用 ベジェ曲線の中間コントロールポイント
+	DirectX::XMFLOAT2 tp1[3], tp2[3];	// 移動 X / Y / Z 用
 
-	// const を追加して一時オブジェクトを受け取れるようにする
-	// （DirectXMathの最適化に合わせるなら const DirectX::XMVECTOR& の代わりに DirectX::FXMVECTOR も可）
 	KeyFrame(
-		unsigned int fno, 
-		const DirectX::XMVECTOR& q,
-		const DirectX::XMFLOAT3& ofst,
-		const DirectX::XMFLOAT2& ip1, 
-		const DirectX::XMFLOAT2& ip2
-	) : frameNo(fno), 
-		quaternion(q), 
-		offset(ofst),
-		p1(ip1), 
-		p2(ip2)
-	{}
+		unsigned int frameNo = 0,
+		DirectX::FXMVECTOR quaternion = DirectX::XMVectorZero(),
+		const DirectX::XMFLOAT3& offset = DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
+		const DirectX::XMFLOAT2& p1 = DirectX::XMFLOAT2(0.0f, 0.0f),
+		const DirectX::XMFLOAT2& p2 = DirectX::XMFLOAT2(0.0f, 0.0f),
+		const DirectX::XMFLOAT2* inTp1 = nullptr,
+		const DirectX::XMFLOAT2* inTp2 = nullptr
+	)
+		: frameNo(frameNo)
+		, quaternion(quaternion)
+		, offset(offset)
+		, p1(p1)
+		, p2(p2)
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			tp1[i] = inTp1 ? inTp1[i] : DirectX::XMFLOAT2(0.0f, 0.0f);
+			tp2[i] = inTp2 ? inTp2[i] : DirectX::XMFLOAT2(0.0f, 0.0f);
+		}
+	}
 };
 
 // IK オンオフデータ

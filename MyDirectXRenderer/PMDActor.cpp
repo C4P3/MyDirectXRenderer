@@ -96,7 +96,53 @@ struct VMDMotion_Raw
 	XMFLOAT4 quaternion;	// クォータニオン
 	unsigned char bezier[64]; // ベジェ補間パラメータ
 };
+
+// 表情データ
+struct VMDMorph
+{
+	char name[15];		// 名前
+	uint32_t frameNo;	// フレーム番号
+	float weight;		// ウェイト（0.0f ~ 1.0f）
+};  // 23 バイト
+
+// カメラ
+struct VMDCamera
+{
+	uint32_t frameNo;	// フレーム番号
+	float distance;		// 距離
+	XMFLOAT3 pos;		// 座標
+	XMFLOAT3 eulerAngle;// オイラー角
+	uint8_t Interpolation[24]; // 補間
+	uint32_t fov;		// 視野角
+	uint8_t persFlg;	// パースフラグ ON / OFF
+};  // 61 バイト
+
+// セルフ影データ
+struct VMDSelfShadow
+{
+	uint32_t frameNo;	// フレーム番号
+	uint8_t mode;		// 影モード（0:影なし 1:モード１ 2:モード２）
+	float distance;		// 距離
+};
 #pragma pack(pop) // 元のアライメント設定に戻す
+
+// ライト照明データ
+struct VMDLight
+{
+	uint32_t frameNo;	// フレーム番号
+	XMFLOAT3 rgb;		// ライト色
+	XMFLOAT3 vec;		// 光線ベクトル（平行光線）
+};
+
+// IK オンオフデータ
+struct VMDIKEnable
+{
+	// キーフレームがあるフレーム番号
+	uint32_t frameNo;
+
+	// 名前とオンオフフラグのマップ
+	std::unordered_map<std::string, bool> ikEnableTable;
+};
 
 // パス合成関数
 // モデルのパスとテクスチャのパスから合成パスを得る
@@ -341,8 +387,11 @@ void PMDActor::SolveLookAt(const PMDIK& ik)
 }
 
 bool PMDActor::VMDMotionLoad(const char* filepath) {
-	unsigned int motionDataNum = 0;
 	std::vector<VMDMotion_Raw> vmdMotionData_Raw;
+	std::vector<VMDMorph> morphs;
+	std::vector<VMDCamera> cameraData;
+	std::vector<VMDLight> lights;
+	std::vector<VMDSelfShadow> selfShadowData;
 
 	std::string strModelPath = filepath;
 	FILE* fp;
@@ -351,10 +400,30 @@ bool PMDActor::VMDMotionLoad(const char* filepath) {
 
 	fseek(fp, 50, SEEK_SET); // 50バイト飛ばす
 
+	unsigned int motionDataNum = 0;
 	fread(&motionDataNum, sizeof(motionDataNum), 1, fp);
 	vmdMotionData_Raw.resize(motionDataNum);
-	cout << "MotionDataNum: " << motionDataNum << '\n';
 	fread(vmdMotionData_Raw.data(), vmdMotionData_Raw.size() * sizeof(VMDMotion_Raw), 1, fp);
+
+	uint32_t morphCount = 0;
+	fread(&morphCount, sizeof(morphCount), 1, fp);
+	morphs.resize(morphCount);
+	fread(morphs.data(), sizeof(VMDMorph), morphCount, fp);
+
+	uint32_t vmdCameraCount = 0;
+	fread(&vmdCameraCount, sizeof(vmdCameraCount), 1, fp);
+	cameraData.resize(vmdCameraCount);
+	fread(cameraData.data(), sizeof(VMDCamera), vmdCameraCount, fp);
+
+	uint32_t vmdLightCount = 0;
+	fread(&vmdLightCount, sizeof(vmdLightCount), 1, fp);
+	lights.resize(vmdLightCount);
+	fread(lights.data(), sizeof(VMDLight), vmdLightCount, fp);
+
+	uint32_t selfShadowCount = 0;
+	fread(&selfShadowCount, sizeof(selfShadowCount), 1, fp);
+	selfShadowData.resize(selfShadowCount);
+	fread(selfShadowData.data(), sizeof(VMDSelfShadow), selfShadowCount, fp);
 
 	fclose(fp);
 

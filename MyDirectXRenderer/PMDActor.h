@@ -85,6 +85,16 @@ struct KeyFrame
 	{}
 };
 
+// IK オンオフデータ
+struct VMDIKEnable
+{
+	// キーフレームがあるフレーム番号
+	uint32_t frameNo;
+
+	// 名前とオンオフフラグのマップ
+	std::unordered_map<std::string, bool> ikEnableTable;
+};
+
 class PMDActor {
 private:
     Dx12Wrapper& _dx12;
@@ -113,12 +123,13 @@ private:
 	std::vector<BoneNode*> _boneNodeAddressArray;
 	std::vector<PMDIK> _ikData;
 	std::vector<uint32_t> _kneeIdxes;
+	std::vector<VMDIKEnable> _ikEnableData;
 
 	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(const std::string& filePath);
 	void RecursiveMatrixMultiply(const BoneNode* node, const DirectX::XMMATRIX& mat);
 	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
 
-	void IKSolve();
+	void IKSolve(unsigned int frameNo);
 	// CCD-IK によりボーン方向を解決する
 	// @param ik 対象 IK オブジェクト
 	void SolveCCDIK(const PMDIK& ik);

@@ -134,16 +134,6 @@ struct VMDLight
 	XMFLOAT3 vec;		// 光線ベクトル（平行光線）
 };
 
-// IK オンオフデータ
-struct VMDIKEnable
-{
-	// キーフレームがあるフレーム番号
-	uint32_t frameNo;
-
-	// 名前とオンオフフラグのマップ
-	std::unordered_map<std::string, bool> ikEnableTable;
-};
-
 // パス合成関数
 // モデルのパスとテクスチャのパスから合成パスを得る
 // @param modelPath アプリケーションから見た pmd モデルのパス
@@ -289,10 +279,25 @@ void IKDebug(std::map<std::string, BoneNode> _boneNodeTable, std::vector<PMDIK> 
 	}
 }
 
-void PMDActor::IKSolve()
+void PMDActor::IKSolve(unsigned int frameNo)
 {
+	auto it = find_if(_ikEnableData.rbegin(), _ikEnableData.rend(),
+		[frameNo](const VMDIKEnable& ikenable)
+		{
+			return ikenable.frameNo <= frameNo;
+		}
+	);
+
 	for (auto& ik : _ikData)
 	{
+		// IK オンオフ情報をフレーム番号で逆から検索
+		if (it != _ikEnableData.rend())
+		{
+			auto ikEnableIt = it->ikEnableTable.find(_boneNameArray[ik.boneIdx]);
+
+			if ((ikEnableIt != it->ikEnableTable.end()) && (!ikEnableIt->second))continue;
+		}
+
 		auto childrenNodesCount = ik.nodeIdxes.size();
 
 		switch (childrenNodesCount)
@@ -424,6 +429,34 @@ bool PMDActor::VMDMotionLoad(const char* filepath) {
 	fread(&selfShadowCount, sizeof(selfShadowCount), 1, fp);
 	selfShadowData.resize(selfShadowCount);
 	fread(selfShadowData.data(), sizeof(VMDSelfShadow), selfShadowCount, fp);
+
+	uint32_t ikSwitchCount = 0;
+	fread(&ikSwitchCount, sizeof(ikSwitchCount), 1, fp);
+	_ikEnableData.resize(ikSwitchCount);
+	for (auto& ikEnable : _ikEnableData)
+	{
+		// キーフレーム情報なのでまずはフレーム番号を読み込み
+		fread(&ikEnable.frameNo, sizeof(ikEnable.frameNo), 1, fp);
+
+		// 可視フラグ
+		uint8_t visibleFlg = 0;
+		fread(&visibleFlg, sizeof(visibleFlg), 1, fp);
+
+		// 対象ボーン数読み込み
+		uint32_t ikBoneCount = 0;
+		fread(&ikBoneCount, sizeof(ikBoneCount), 1, fp);
+
+		for (int i = 0; i < ikBoneCount; ++i)
+		{
+			char ikBoneName[20];
+			fread(ikBoneName, _countof(ikBoneName), 1, fp);
+
+			uint8_t flg = 0;
+			fread(&flg, sizeof(flg), 1, fp);
+			ikEnable.ikEnableTable[ikBoneName] = flg;
+		}
+	}
+
 
 	fclose(fp);
 
@@ -750,7 +783,7 @@ void PMDActor::PlayAnimation() {
 	}
 
 	RecursiveMatrixMultiply(&_boneNodeTable["センター"], XMMatrixIdentity());
-	IKSolve();
+	IKSolve(frameNo);
 	std::copy(_boneMatrices.begin(), _boneMatrices.end(), _mappedTransform->bones.begin());
 }
 

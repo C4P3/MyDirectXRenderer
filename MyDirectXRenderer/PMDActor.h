@@ -46,23 +46,42 @@ struct PMDVertex
 
 struct BoneNode
 {
-	int boneIdx;		// ボーンインデックス
+	uint32_t boneIdx;		// ボーンインデックス
+	uint32_t boneType;		// ボーン種別
+	uint32_t ikParentBone;	// IK 親ボーン
 	DirectX::XMFLOAT3 startPos;	// ボーン基準点（回転の中心）
-	DirectX::XMFLOAT3 endPos;	// ボーン先端点（実際のスキニングには利用しない）
 	std::vector<BoneNode*> children;	// 子ノード
+};
+
+struct PMDIK
+{
+	uint16_t boneIdx;	// IK 対象のボーンを示す
+	uint16_t targetIdx;	// ターゲットに近づけるためのボーンのインデックス
+	uint16_t iterations;// 試行回数
+	float limit;		// 1回あたりの回転制限
+	std::vector<uint16_t> nodeIdxes; // 間のノード番号
 };
 
 struct KeyFrame
 {
-	unsigned int frameNo;	// アニメーション開始からのフレーム数
+	unsigned int frameNo;		// アニメーション開始からのフレーム数
 	DirectX::XMVECTOR quaternion;	// クォータニオン
+	DirectX::XMFLOAT3 offset;	// IKの初期座標からのオフセット情報
 	DirectX::XMFLOAT2 p1, p2;	// ベジェ曲線の中間コントロールポイント
 
 	// const を追加して一時オブジェクトを受け取れるようにする
 	// （DirectXMathの最適化に合わせるなら const DirectX::XMVECTOR& の代わりに DirectX::FXMVECTOR も可）
-	KeyFrame(unsigned int fno, const DirectX::XMVECTOR& q,
-			const DirectX::XMFLOAT2& ip1, const DirectX::XMFLOAT2& ip2)
-		: frameNo(fno), quaternion(q), p1(ip1), p2(ip2)
+	KeyFrame(
+		unsigned int fno, 
+		const DirectX::XMVECTOR& q,
+		const DirectX::XMFLOAT3& ofst,
+		const DirectX::XMFLOAT2& ip1, 
+		const DirectX::XMFLOAT2& ip2
+	) : frameNo(fno), 
+		quaternion(q), 
+		offset(ofst),
+		p1(ip1), 
+		p2(ip2)
 	{}
 };
 
@@ -90,9 +109,25 @@ private:
 	std::unordered_map<std::string, std::vector<KeyFrame>> _motiondata;
 	DWORD _startTime;	// アニメーション開始のミリ秒
 	unsigned int _duration = 0;
+	std::vector<std::string> _boneNameArray;
+	std::vector<BoneNode*> _boneNodeAddressArray;
+	std::vector<PMDIK> _ikData;
+	std::vector<uint32_t> _kneeIdxes;
 
+	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(const std::string& filePath);
 	void RecursiveMatrixMultiply(const BoneNode* node, const DirectX::XMMATRIX& mat);
 	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
+
+	void IKSolve();
+	// CCD-IK によりボーン方向を解決する
+	// @param ik 対象 IK オブジェクト
+	void SolveCCDIK(const PMDIK& ik);
+	// 余弦定理 IK によりボーン方向を解決する
+	// @param ik 対象 IK オブジェクト
+	void SolveCosineIK(const PMDIK& ik);
+	// LookAt 行列によりボーン方向を解決
+	// @param ik 対象 IK オブジェクト
+	void SolveLookAt(const PMDIK& ik);
 public:
 	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
@@ -101,9 +136,6 @@ public:
 	bool VMDMotionLoad(const char* filepath);
     void Update();
     void Draw();
-	Microsoft::WRL::ComPtr<ID3D12Resource> LoadTextureFromFile(
-		const std::string& filePath
-	);
 
 	void PlayAnimation();
 };

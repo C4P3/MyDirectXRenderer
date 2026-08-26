@@ -105,7 +105,7 @@ bool Application::Init() {
 		_pmdActor.reset();   // Update() の呼び出し側でも null チェック
 	}
 	// VMD アニメーション
-	_pmdActor->VMDMotionLoad("Motion/motion.vmd");
+	_pmdActor->VMDMotionLoad("Motion/squat.vmd");
 
 
 	// gregory

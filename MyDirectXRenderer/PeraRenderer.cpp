@@ -29,6 +29,35 @@ using namespace std;
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
+namespace
+{
+
+	std::vector<float> GetGaussianWeight(size_t count, float s)
+	{
+		std::vector<float> weights(count); // ウェイト配列返却用
+		float x = 0.0f;
+		float total = 0.0f;
+
+		for (auto& wgt : weights)
+		{
+			wgt = expf(-(x * x) / (2 * s * s));
+			total += wgt;
+			x += 1.0f;
+		}
+
+		total = total * 2.0f - 1;
+
+		// 足して 1 になるようにする
+		for (auto& wgt : weights)
+		{
+			wgt /= total;
+		}
+
+		return weights;
+	}
+}
+
+
 struct PeraVertex
 {
 	XMFLOAT3 pos;
@@ -49,9 +78,11 @@ bool PeraRenderer::Init()
 		{ { 1, 1, 0.1 }, {1, 0} }	// 右上
 	};
 
+	HRESULT result;
+
 	auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	auto resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(pv));
-	HRESULT result = _dx12.Device()->CreateCommittedResource(
+	result = _dx12.Device()->CreateCommittedResource(
 		&heapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
@@ -68,6 +99,27 @@ bool PeraRenderer::Init()
 	_peraVB->Map(0, nullptr, (void**)&mappedPera);
 	copy(begin(pv), end(pv), mappedPera);
 	_peraVB->Unmap(0, nullptr);
+
+	// ぼかしウェイト
+	auto weights = GetGaussianWeight(8, 3.0f);
+	resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(
+		(sizeof(weights[0]) * weights.size() + 0xff) & ~0xff
+	);
+	result = _dx12.Device()->CreateCommittedResource(
+		&heapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(_bokehParamBuffer.ReleaseAndGetAddressOf())
+	);
+	assert(SUCCEEDED(result));
+
+	float* mappedWeight = nullptr;
+	result = _bokehParamBuffer->Map(0, nullptr, (void**)&mappedWeight);
+	assert(SUCCEEDED(result));
+	copy(weights.begin(), weights.end(), mappedWeight);
+	_bokehParamBuffer->Unmap(0, nullptr);
 
 
 	// ・シェーダーのコンパイル
@@ -110,18 +162,22 @@ bool PeraRenderer::Init()
 	range.BaseShaderRegister = 0;  // 0
 	range.NumDescriptors = 1;
 
-	D3D12_ROOT_PARAMETER rp = {};
-	rp.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	rp.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	rp.DescriptorTable.pDescriptorRanges = &range;
-	rp.DescriptorTable.NumDescriptorRanges = 1;
+	D3D12_ROOT_PARAMETER rp[2] = {};
+	rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rp[0].DescriptorTable.pDescriptorRanges = &range;
+	rp[0].DescriptorTable.NumDescriptorRanges = 1;
+
+	rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;   // ヒープ不要
+	rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rp[1].Descriptor.ShaderRegister = 0;   // b0
 
 	D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0); // s0
 
 	// ルートシグネチャ
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-	rootSignatureDesc.NumParameters = 1;
-	rootSignatureDesc.pParameters = &rp;
+	rootSignatureDesc.NumParameters = 2;
+	rootSignatureDesc.pParameters = rp;
 	rootSignatureDesc.NumStaticSamplers = 1;
 	rootSignatureDesc.pStaticSamplers = &sampler;
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -200,6 +256,7 @@ void PeraRenderer::Draw()
 	cmdList->SetDescriptorHeaps(1, &heap);                     // ヒープをセット
 	cmdList->SetGraphicsRootDescriptorTable(                   // 0番に関連付ける
 		0, heap->GetGPUDescriptorHandleForHeapStart());
+	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	cmdList->IASetVertexBuffers(0, 1, &_peraVBV);

@@ -11,6 +11,7 @@ private:
 	Dx12Wrapper& _dx12;
 	
 	Microsoft::WRL::ComPtr<ID3D12Resource> _peraVB = nullptr;
+	Microsoft::WRL::ComPtr<ID3D12Resource> _bokehParamBuffer = nullptr;
 	D3D12_VERTEX_BUFFER_VIEW _peraVBV = {};
 	
 

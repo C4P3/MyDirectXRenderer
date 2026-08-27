@@ -228,71 +228,6 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	return true;
 }
 
-
-bool Dx12Wrapper::CreateMultiPassResource() {
-	// マルチパスレンダリング用
-	// 作成済みのヒープ情報を使ってもう一枚作る
-	auto heapDesc = _rtvDescHeap->GetDesc();
-
-	// 使っているバックバッファーの情報を利用する
-	auto& bbuff = _backBuffers[0];
-	auto resDesc = bbuff->GetDesc();
-
-	D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-
-	float clsClr[4] = { 0.5, 0.5, 0.5, 1.0 };
-	D3D12_CLEAR_VALUE clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clsClr);
-
-	auto result = _dev->CreateCommittedResource(
-		&heapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,	// PIXEL_SHADER_RESOURCE
-		&clearValue,
-		IID_PPV_ARGS(_peraResource.ReleaseAndGetAddressOf())
-	);
-	assert(SUCCEEDED(result));
-
-	// ビュー（rtv/srv）を作る
-	// RTV用ヒープ
-	heapDesc.NumDescriptors = 1;
-	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraRTVHeap.ReleaseAndGetAddressOf()));
-	assert(SUCCEEDED(result));
-
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-
-	// レンダーターゲットビューを作る
-	_dev->CreateRenderTargetView(
-		_peraResource.Get(),
-		&rtvDesc,
-		_peraRTVHeap->GetCPUDescriptorHandleForHeapStart()
-	);
-
-	// SRV 用ヒープを作る
-	heapDesc.NumDescriptors = 1;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-
-	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraSRVHeap.ReleaseAndGetAddressOf()));
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = rtvDesc.Format;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-	// シェーダーリソースビューを作る
-	_dev->CreateShaderResourceView(
-		_peraResource.Get(),
-		&srvDesc,
-		_peraSRVHeap->GetCPUDescriptorHandleForHeapStart()
-	);
-
-	return true;
-};
-
 // ペラ用 RT に切り替えて、3D をそこに描く
 void Dx12Wrapper::PreDrawToPera()
 {
@@ -470,6 +405,71 @@ ComPtr<ID3D12Resource> Dx12Wrapper::CreateSolidColorTexture(
 		sizeof(data)	// 全サイズ
 	);
 }
+
+bool Dx12Wrapper::CreateMultiPassResource() {
+	// マルチパスレンダリング用
+	// 作成済みのヒープ情報を使ってもう一枚作る
+	auto heapDesc = _rtvDescHeap->GetDesc();
+
+	// 使っているバックバッファーの情報を利用する
+	auto& bbuff = _backBuffers[0];
+	auto resDesc = bbuff->GetDesc();
+
+	D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	float clsClr[4] = { 0.5, 0.5, 0.5, 1.0 };
+	D3D12_CLEAR_VALUE clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clsClr);
+
+	auto result = _dev->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,	// PIXEL_SHADER_RESOURCE
+		&clearValue,
+		IID_PPV_ARGS(_peraResource.ReleaseAndGetAddressOf())
+	);
+	assert(SUCCEEDED(result));
+
+	// ビュー（rtv/srv）を作る
+	// RTV用ヒープ
+	heapDesc.NumDescriptors = 1;
+	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraRTVHeap.ReleaseAndGetAddressOf()));
+	assert(SUCCEEDED(result));
+
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+	// レンダーターゲットビューを作る
+	_dev->CreateRenderTargetView(
+		_peraResource.Get(),
+		&rtvDesc,
+		_peraRTVHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+
+	// SRV 用ヒープを作る
+	heapDesc.NumDescriptors = 2;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraSRVHeap.ReleaseAndGetAddressOf()));
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Format = rtvDesc.Format;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+	auto handle = _peraSRVHeap->GetCPUDescriptorHandleForHeapStart();
+	// シェーダーリソースビューを作る
+	_dev->CreateShaderResourceView(
+		_peraResource.Get(),
+		&srvDesc,
+		handle
+	);
+
+	return true;
+};
 
 ComPtr<ID3D12DescriptorHeap> Dx12Wrapper::CreateDescriptorHeapForImgui() {
 	ComPtr<ID3D12DescriptorHeap> ret;

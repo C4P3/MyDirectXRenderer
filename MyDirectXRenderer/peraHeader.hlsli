@@ -6,3 +6,8 @@ struct Output
     float4 svpos : SV_Position;
     float2 uv : TEXCOORD;
 };
+
+cbuffer PostEffect : register(b0)
+{
+    float4 bkweights[2]; // 16 ŒÂ‚Ì float
+};

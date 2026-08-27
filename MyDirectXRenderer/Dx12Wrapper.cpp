@@ -241,7 +241,7 @@ bool Dx12Wrapper::CreateMultiPassResource() {
 	D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 
 	float clsClr[4] = { 0.5, 0.5, 0.5, 1.0 };
-	D3D12_CLEAR_VALUE clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clsClr);
+	D3D12_CLEAR_VALUE clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clsClr);
 
 	auto result = _dev->CreateCommittedResource(
 		&heapProp,
@@ -336,12 +336,10 @@ void Dx12Wrapper::BeginDraw()
 
 	auto rtvH = _rtvDescHeap->GetCPUDescriptorHandleForHeapStart();
 	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	auto dsvH = _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
-	_cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvH);
+	_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
 
 	float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-	_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// ビューポートとシザー矩形
 	_cmdList->RSSetViewports(1, &_viewport);

@@ -43,6 +43,7 @@ public:
     ID3D12Fence* Fence() const { return _fence.Get(); }
     UINT64& FenceVal() { return _fenceVal; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetHeapForImgui() const { return _heapForImgui; }
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PeraSRVHeap() const { return _peraSRVHeap; }
 
     // ŠÖ”‚ÌéŒ¾‚Ì‚İ‚ğ‹Lq
     bool Init(HWND hwnd, int window_width, int window_height);

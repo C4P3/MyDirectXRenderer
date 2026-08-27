@@ -78,17 +78,23 @@
     <ClCompile Include="External\imgui\backends\imgui_impl_win32.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="PeraRenderer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="BasicVertexShader.hlsl" />
     <FxCompile Include="BasicPixelShader.hlsl" />
     <FxCompile Include="GregoryPixelShader.hlsl" />
     <FxCompile Include="GregoryVertexShader.hlsl" />
+    <FxCompile Include="peraPixel.hlsl" />
+    <FxCompile Include="peraVertex.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="BasicShaderHeader.hlsli" />
     <None Include="packages.config" />
     <None Include="GregoryShaderHeader.hlsli" />
+    <None Include="peraHeader.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">
@@ -113,6 +119,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="GregoryRenderer.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="PeraRenderer.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

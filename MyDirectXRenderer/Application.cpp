@@ -4,6 +4,7 @@
 #include "PMDActor.h"
 #include "GregoryRenderer.h"
 #include "GregoryActor.h"
+#include "PeraRenderer.h"
 #include "Scene.h"
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
@@ -94,6 +95,10 @@ bool Application::Init() {
 	_scene.reset(new Scene(*_dx12));
 	if (!_scene->Init(window_width, window_height)) return false;
 
+	// マルチパスレンダラー
+	_peraRenderer.reset(new PeraRenderer(*_dx12));
+	if (!_peraRenderer->Init()) return false; // パイプライン構築
+
 	// PMD
 	_pmdRenderer.reset(new PMDRenderer(*_dx12));
 	if (!_pmdRenderer->Init()) return false; // パイプライン構築
@@ -161,7 +166,7 @@ void Application::Run()
 
 		// --- パス2: バックバッファへペラポリゴン ---
 		_dx12->BeginDraw();
-		// _peraRenderer->Draw();
+		 _peraRenderer->Draw();
 
 		// ImGui
 		_dx12->CommandList()->SetDescriptorHeaps(

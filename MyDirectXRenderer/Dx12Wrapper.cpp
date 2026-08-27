@@ -282,7 +282,7 @@ void Dx12Wrapper::PreDrawToPera2()
 void Dx12Wrapper::PostDrawToPera2()
 {
 	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		_peraResource1.Get(),
+		_peraResource2.Get(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	_cmdList->ResourceBarrier(1, &barrier);

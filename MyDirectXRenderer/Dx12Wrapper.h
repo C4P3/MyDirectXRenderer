@@ -16,14 +16,17 @@ private:
     Microsoft::WRL::ComPtr<ID3D12CommandAllocator> _cmdAllocator;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> _cmdList;
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> _cmdQueue;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeaps;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvDescHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _dsvDescHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _peraRTVHeap;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _peraSRVHeap;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeapForImgui();
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _heapForImgui;
 
 
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _backBuffers;
     Microsoft::WRL::ComPtr<ID3D12Resource> _depthBuffer;
+    Microsoft::WRL::ComPtr<ID3D12Resource> _peraResource;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
     UINT64 _fenceVal = 0;
@@ -31,6 +34,7 @@ private:
     D3D12_VIEWPORT _viewport = {};
     D3D12_RECT _scissorRect = {};
 
+    bool CreateMultiPassResource();
 public:
     ID3D12Device* Device() const { return _dev.Get(); }
     ID3D12GraphicsCommandList* CommandList() const { return _cmdList.Get(); }
@@ -43,6 +47,8 @@ public:
     // ä÷êîÇÃêÈåæÇÃÇ›ÇãLèq
     bool Init(HWND hwnd, int window_width, int window_height);
     void BeginDraw();
+    void PreDrawToPera();
+    void PostDrawToPera();
     void EndDraw();
     void WaitForGPU();
 

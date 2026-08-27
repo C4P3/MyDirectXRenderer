@@ -1,6 +1,7 @@
 #include "Dx12Wrapper.h"
 
 #include <string>
+#include <assert.h>
 #include "d3dx12.h"
 
 // ソースファイル内であれば using namespace を使っても安全です
@@ -156,7 +157,7 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {}; // 深度に使う
 	dsvHeapDesc.NumDescriptors = 1; // 深度ビューは1つ
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV; // デプスステンシルビューとして使う
-	result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap));
+	result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&_dsvDescHeap));
 	if (FAILED(result)) return -1;
 
 	// デプス深度ビュー作成
@@ -168,7 +169,7 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	_dev->CreateDepthStencilView(
 		_depthBuffer.Get(),
 		&dsvDesc,
-		dsvHeap->GetCPUDescriptorHandleForHeapStart()
+		_dsvDescHeap->GetCPUDescriptorHandleForHeapStart()
 	);
 
 	// レンダーターゲットビュー
@@ -178,7 +179,7 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	heapDesc.NodeMask = 0;
 	heapDesc.NumDescriptors = 2; // 表裏の２つ
 	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // 特に指定なし
-	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
+	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&_rtvDescHeap));
 	if (FAILED(result)) return false;
 
 	// スワップチェーンのメモリと紐づけ
@@ -188,7 +189,7 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 
 	// backBuffers
 	_backBuffers.resize(swcDesc.BufferCount);
-	D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+	D3D12_CPU_DESCRIPTOR_HANDLE handle = _rtvDescHeap->GetCPUDescriptorHandleForHeapStart();
 	// SRGB レンダーターゲットビュー設定
 	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -217,6 +218,9 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	_scissorRect.right = window_width;
 	_scissorRect.bottom = window_height;
 
+	// マルチパスレンダリング用
+	CreateMultiPassResource();
+
 	// imgui用
 	_heapForImgui = CreateDescriptorHeapForImgui();
 	if (_heapForImgui == nullptr) return false;
@@ -224,6 +228,102 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	return true;
 }
 
+
+bool Dx12Wrapper::CreateMultiPassResource() {
+	// マルチパスレンダリング用
+	// 作成済みのヒープ情報を使ってもう一枚作る
+	auto heapDesc = _rtvDescHeap->GetDesc();
+
+	// 使っているバックバッファーの情報を利用する
+	auto& bbuff = _backBuffers[0];
+	auto resDesc = bbuff->GetDesc();
+
+	D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+
+	float clsClr[4] = { 0.5, 0.5, 0.5, 1.0 };
+	D3D12_CLEAR_VALUE clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM, clsClr);
+
+	auto result = _dev->CreateCommittedResource(
+		&heapProp,
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,	// PIXEL_SHADER_RESOURCE
+		&clearValue,
+		IID_PPV_ARGS(_peraResource.ReleaseAndGetAddressOf())
+	);
+	assert(SUCCEEDED(result));
+
+	// ビュー（rtv/srv）を作る
+	// RTV用ヒープ
+	heapDesc.NumDescriptors = 1;
+	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraRTVHeap.ReleaseAndGetAddressOf()));
+	assert(SUCCEEDED(result));
+
+	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+	// レンダーターゲットビューを作る
+	_dev->CreateRenderTargetView(
+		_peraResource.Get(),
+		&rtvDesc,
+		_peraRTVHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+
+	// SRV 用ヒープを作る
+	heapDesc.NumDescriptors = 1;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraSRVHeap.ReleaseAndGetAddressOf()));
+
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Format = rtvDesc.Format;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+	// シェーダーリソースビューを作る
+	_dev->CreateShaderResourceView(
+		_peraResource.Get(),
+		&srvDesc,
+		_peraSRVHeap->GetCPUDescriptorHandleForHeapStart()
+	);
+
+	return true;
+};
+
+// ペラ用 RT に切り替えて、3D をそこに描く
+void Dx12Wrapper::PreDrawToPera()
+{
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		_peraResource.Get(),
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_RENDER_TARGET);
+	_cmdList->ResourceBarrier(1, &barrier);
+
+	auto rtvH = _peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
+	auto dsvH = _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
+	_cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
+
+	float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };  // 作成時の clearValue と同じ値にする
+	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+	_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+	// ビューポートとシザー矩形
+	_cmdList->RSSetViewports(1, &_viewport);
+	_cmdList->RSSetScissorRects(1, &_scissorRect);
+}
+
+// 描き終わったらテクスチャとして読める状態に戻す
+void Dx12Wrapper::PostDrawToPera()
+{
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+		_peraResource.Get(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	_cmdList->ResourceBarrier(1, &barrier);
+}
 
 // ==========================================
 // 描画制御
@@ -234,9 +334,9 @@ void Dx12Wrapper::BeginDraw()
 	D3D12_RESOURCE_BARRIER BarrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(_backBuffers[bbIdx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	_cmdList->ResourceBarrier(1, &BarrierDesc);
 
-	auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+	auto rtvH = _rtvDescHeap->GetCPUDescriptorHandleForHeapStart();
 	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	auto dsvH = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+	auto dsvH = _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
 	_cmdList->OMSetRenderTargets(1, &rtvH, true, &dsvH);
 
 	float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };

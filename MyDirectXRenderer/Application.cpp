@@ -152,9 +152,18 @@ void Application::Run()
 		_gregoryActor->Update();
 
 		// --- 描画 ---
-		_dx12->BeginDraw();
+		// --- パス1: オフスクリーンへ ---
+		_dx12->PreDrawToPera();
 		_pmdRenderer->Draw(*_scene);
 		_gregoryRenderer->Draw(*_scene);
+		_dx12->PostDrawToPera();
+
+
+		// --- パス2: バックバッファへペラポリゴン ---
+		_dx12->BeginDraw();
+		// _peraRenderer->Draw();
+
+		// ImGui
 		_dx12->CommandList()->SetDescriptorHeaps(
 			1, _dx12->GetHeapForImgui().GetAddressOf()
 		);

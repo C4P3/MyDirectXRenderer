@@ -110,7 +110,7 @@ bool Application::Init() {
 		_pmdActor.reset();   // Update() の呼び出し側でも null チェック
 	}
 	// VMD アニメーション
-	_pmdActor->VMDMotionLoad("Motion/squat.vmd");
+	if (_pmdActor) _pmdActor->VMDMotionLoad("Motion/squat.vmd");
 
 
 	// gregory
@@ -158,15 +158,19 @@ void Application::Run()
 
 		// --- 描画 ---
 		// --- パス1: オフスクリーンへ ---
-		_dx12->PreDrawToPera();
+		_dx12->PreDrawToPera();          // 1枚目に3D
 		_pmdRenderer->Draw(*_scene);
 		_gregoryRenderer->Draw(*_scene);
 		_dx12->PostDrawToPera();
 
+		_dx12->PreDrawToPera2();         // 2枚目に横ぼかし
+		_peraRenderer->DrawHorizontal();
+		_dx12->PostDrawToPera2();
+
 
 		// --- パス2: バックバッファへペラポリゴン ---
-		_dx12->BeginDraw();
-		 _peraRenderer->Draw();
+		_dx12->BeginDraw();				// バックバッファに縦ぼかし
+		_peraRenderer->DrawVertical();
 
 		// ImGui
 		_dx12->CommandList()->SetDescriptorHeaps(

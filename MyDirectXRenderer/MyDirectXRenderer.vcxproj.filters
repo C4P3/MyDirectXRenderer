@@ -89,6 +89,7 @@
     <FxCompile Include="GregoryVertexShader.hlsl" />
     <FxCompile Include="peraPixel.hlsl" />
     <FxCompile Include="peraVertex.hlsl" />
+    <FxCompile Include="VerticalBokehPS.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="BasicShaderHeader.hlsli" />

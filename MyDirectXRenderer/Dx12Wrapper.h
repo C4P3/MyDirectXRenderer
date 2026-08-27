@@ -26,7 +26,8 @@ private:
 
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _backBuffers;
     Microsoft::WRL::ComPtr<ID3D12Resource> _depthBuffer;
-    Microsoft::WRL::ComPtr<ID3D12Resource> _peraResource;
+    Microsoft::WRL::ComPtr<ID3D12Resource> _peraResource1;
+    Microsoft::WRL::ComPtr<ID3D12Resource> _peraResource2;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
     UINT64 _fenceVal = 0;
@@ -49,7 +50,9 @@ public:
     bool Init(HWND hwnd, int window_width, int window_height);
     void BeginDraw();
     void PreDrawToPera();
+    void PreDrawToPera2();
     void PostDrawToPera();
+    void PostDrawToPera2();
     void EndDraw();
     void WaitForGPU();
 

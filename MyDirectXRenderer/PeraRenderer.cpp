@@ -238,27 +238,47 @@ bool PeraRenderer::Init()
 	gpipeline.InputLayout.pInputElementDescs = inputLayout; // レイアウト先頭アドレス
 	gpipeline.InputLayout.NumElements = _countof(inputLayout); // レイアウト配列の要素数
 
-	result = _dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelineState));
+	// 1枚目用パイプライン生成
+	result = _dx12.Device()->CreateGraphicsPipelineState(
+		&gpipeline, IID_PPV_ARGS(&_psoHorizontal)
+	);
+	if (FAILED(result))return false;
+
+	// 2枚目用ピクセルシェーダー
+	if (!compileShader(L"VerticalBokehPS.hlsl", "VerticalBokehPS", "ps_5_0", _psBlob)) return false;
+	gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
+
+	// 2枚目用パイプライン生成
+	result = _dx12.Device()->CreateGraphicsPipelineState(
+		&gpipeline, IID_PPV_ARGS(&_psoVertical)
+	);
 	if (FAILED(result))return false;
 
 	return true;
 }
 
 // 描画コマンドの積み込み
-void PeraRenderer::Draw()
+void PeraRenderer::Draw(UINT srvIndex, ID3D12PipelineState* pso)
 {
 	auto cmdList = _dx12.CommandList();
 
-	cmdList->SetPipelineState(_pipelineState.Get());
+	cmdList->SetPipelineState(pso);
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
 	auto heap = _dx12.PeraSRVHeap().Get();
 	cmdList->SetDescriptorHeaps(1, &heap);                     // ヒープをセット
-	cmdList->SetGraphicsRootDescriptorTable(                   // 0番に関連付ける
-		0, heap->GetGPUDescriptorHandleForHeapStart());
+
+	auto handle = heap->GetGPUDescriptorHandleForHeapStart();
+	handle.ptr += srvIndex * _dx12.Device()->GetDescriptorHandleIncrementSize(
+		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);// srvIndex番に関連付ける
+
+	cmdList->SetGraphicsRootDescriptorTable(0, handle);
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	cmdList->IASetVertexBuffers(0, 1, &_peraVBV);
 	cmdList->DrawInstanced(4, 1, 0, 0);
 }
+
+void PeraRenderer::DrawHorizontal() { Draw(0, _psoHorizontal.Get()); } // 1枚目を読む
+void PeraRenderer::DrawVertical() { Draw(1, _psoVertical.Get()); }   // 2枚目を読む

@@ -16,9 +16,12 @@ private:
 	
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psoHorizontal;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psoVertical;
 public:
 	PeraRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
+	void DrawHorizontal(); // 1–‡–Ú‚ð“Ç‚Þ
+	void DrawVertical();// 2–‡–Ú‚ð“Ç‚Þ
 	bool Init();
-	void Draw();
+	void Draw(UINT srvIndex, ID3D12PipelineState* pso);
 };

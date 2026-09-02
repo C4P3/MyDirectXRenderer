@@ -19,6 +19,9 @@
     <Filter Include="gregory">
       <UniqueIdentifier>{844b3ae0-c30e-4789-8cfe-482d24b58bd1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{b1e9c7a4-0000-4000-8000-000000000001}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -83,19 +86,19 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="BasicVertexShader.hlsl" />
-    <FxCompile Include="BasicPixelShader.hlsl" />
-    <FxCompile Include="GregoryPixelShader.hlsl" />
-    <FxCompile Include="GregoryVertexShader.hlsl" />
-    <FxCompile Include="peraPixel.hlsl" />
-    <FxCompile Include="peraVertex.hlsl" />
-    <FxCompile Include="VerticalBokehPS.hlsl" />
+    <None Include="Shader\BasicPixelShader.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\BasicVertexShader.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\BasicShaderHeader.hlsli"><Filter>Shader</Filter></None>
+    <None Include="Shader\GregoryPixelShader.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\GregoryVertexShader.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\GregoryShaderHeader.hlsli"><Filter>Shader</Filter></None>
+    <None Include="Shader\peraPixel.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\peraVertex.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\peraHeader.hlsli"><Filter>Shader</Filter></None>
+    <None Include="Shader\VerticalBokehPS.hlsl"><Filter>Shader</Filter></None>
   </ItemGroup>
   <ItemGroup>
-    <None Include="BasicShaderHeader.hlsli" />
     <None Include="packages.config" />
-    <None Include="GregoryShaderHeader.hlsli" />
-    <None Include="peraHeader.hlsli" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="d3dx12.h">

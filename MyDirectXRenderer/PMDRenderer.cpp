@@ -73,8 +73,8 @@ bool PMDRenderer::Init()
 			return true;
 			};
 
-		if (!compileShader(L"BasicVertexShader.hlsl", "BasicVS", "vs_5_0", _vsBlob)) return false;
-		if (!compileShader(L"BasicPixelShader.hlsl", "BasicPS", "ps_5_0", _psBlob)) return false;
+		if (!compileShader(L"Shader/BasicVertexShader.hlsl", "BasicVS", "vs_5_0", _vsBlob)) return false;
+		if (!compileShader(L"Shader/BasicPixelShader.hlsl", "BasicPS", "ps_5_0", _psBlob)) return false;
 
 		// ルートシグネチャの作成
 		// ディスクリプタレンジ

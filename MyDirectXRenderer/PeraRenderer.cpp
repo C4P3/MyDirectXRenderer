@@ -154,8 +154,8 @@ bool PeraRenderer::Init()
 		return true;
 		};
 
-	if (!compileShader(L"peraVertex.hlsl", "vs", "vs_5_0", _vsBlob)) return false;
-	if (!compileShader(L"peraPixel.hlsl", "ps", "ps_5_0", _psBlob)) return false;
+	if (!compileShader(L"Shader/peraVertex.hlsl", "vs", "vs_5_0", _vsBlob)) return false;
+	if (!compileShader(L"Shader/peraPixel.hlsl", "ps", "ps_5_0", _psBlob)) return false;
 
 	D3D12_DESCRIPTOR_RANGE range = {};
 	range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
@@ -245,7 +245,7 @@ bool PeraRenderer::Init()
 	if (FAILED(result))return false;
 
 	// 2枚目用ピクセルシェーダー
-	if (!compileShader(L"VerticalBokehPS.hlsl", "VerticalBokehPS", "ps_5_0", _psBlob)) return false;
+	if (!compileShader(L"Shader/VerticalBokehPS.hlsl", "VerticalBokehPS", "ps_5_0", _psBlob)) return false;
 	gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
 
 	// 2枚目用パイプライン生成

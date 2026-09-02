@@ -71,8 +71,8 @@ bool GregoryRenderer::Init()
 		return true;
 		};
 
-	if (!compileShader(L"GregoryVertexShader.hlsl", "GregoryVS", "vs_5_0", _vsBlob)) return false;
-	if (!compileShader(L"GregoryPixelShader.hlsl", "GregoryPS", "ps_5_0", _psBlob)) return false;
+	if (!compileShader(L"Shader/GregoryVertexShader.hlsl", "GregoryVS", "vs_5_0", _vsBlob)) return false;
+	if (!compileShader(L"Shader/GregoryPixelShader.hlsl", "GregoryPS", "ps_5_0", _psBlob)) return false;
 
 	D3D12_ROOT_PARAMETER rootparam[2] = {};
 	// [0] b0 シーン ＝ ルートCBV

@@ -22,6 +22,9 @@
     <Filter Include="Shader">
       <UniqueIdentifier>{b1e9c7a4-0000-4000-8000-000000000001}</UniqueIdentifier>
     </Filter>
+    <Filter Include="RenderGraph">
+      <UniqueIdentifier>{da110b1b-41be-4ca3-91b5-ffb92d67de64}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -84,18 +87,41 @@
     <ClCompile Include="PeraRenderer.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="RenderGraph\RenderGraph.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shader\BasicPixelShader.hlsl"><Filter>Shader</Filter></None>
-    <None Include="Shader\BasicVertexShader.hlsl"><Filter>Shader</Filter></None>
-    <None Include="Shader\BasicShaderHeader.hlsli"><Filter>Shader</Filter></None>
-    <None Include="Shader\GregoryPixelShader.hlsl"><Filter>Shader</Filter></None>
-    <None Include="Shader\GregoryVertexShader.hlsl"><Filter>Shader</Filter></None>
-    <None Include="Shader\GregoryShaderHeader.hlsli"><Filter>Shader</Filter></None>
-    <None Include="Shader\peraPixel.hlsl"><Filter>Shader</Filter></None>
-    <None Include="Shader\peraVertex.hlsl"><Filter>Shader</Filter></None>
-    <None Include="Shader\peraHeader.hlsli"><Filter>Shader</Filter></None>
-    <None Include="Shader\VerticalBokehPS.hlsl"><Filter>Shader</Filter></None>
+    <None Include="Shader\BasicPixelShader.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\BasicVertexShader.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\BasicShaderHeader.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\GregoryPixelShader.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\GregoryVertexShader.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\GregoryShaderHeader.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\peraPixel.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\peraVertex.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\peraHeader.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\VerticalBokehPS.hlsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -126,6 +152,9 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="PeraRenderer.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraph\RenderGraph.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

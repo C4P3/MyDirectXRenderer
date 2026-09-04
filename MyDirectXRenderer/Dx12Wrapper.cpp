@@ -211,7 +211,7 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	_viewport.TopLeftX = 0;
 	_viewport.TopLeftY = 0;
 	_viewport.MaxDepth = 1.0f;
-	_viewport.MinDepth = 0.0f;
+	_viewport. MinDepth = 0.0f;
 
 	_scissorRect.top = 0;
 	_scissorRect.left = 0;
@@ -228,93 +228,8 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	return true;
 }
 
-// ペラ用 RT に切り替えて、3D をそこに描く
-void Dx12Wrapper::PreDrawToPera()
-{
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		_peraResource1.Get(),
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_RENDER_TARGET);
-	_cmdList->ResourceBarrier(1, &barrier);
-
-	auto rtvH = _peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
-	auto dsvH = _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
-	_cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
-
-	float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };  // 作成時の clearValue と同じ値にする
-	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-	_cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
-	// ビューポートとシザー矩形
-	_cmdList->RSSetViewports(1, &_viewport);
-	_cmdList->RSSetScissorRects(1, &_scissorRect);
-}
-
-// 描き終わったらテクスチャとして読める状態に戻す
-void Dx12Wrapper::PostDrawToPera()
-{
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		_peraResource1.Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	_cmdList->ResourceBarrier(1, &barrier);
-}
-
-void Dx12Wrapper::PreDrawToPera2()
-{
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		_peraResource2.Get(),
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_RENDER_TARGET);
-	_cmdList->ResourceBarrier(1, &barrier);
-
-	auto rtvH = _peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
-	rtvH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV); // 2枚目
-	_cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
-
-	float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
-	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-
-	_cmdList->RSSetViewports(1, &_viewport);
-	_cmdList->RSSetScissorRects(1, &_scissorRect);
-}
-// 描き終わったらテクスチャとして読める状態に戻す
-void Dx12Wrapper::PostDrawToPera2()
-{
-	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-		_peraResource2.Get(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	_cmdList->ResourceBarrier(1, &barrier);
-}
-
-// ==========================================
-// 描画制御
-// ==========================================
-void Dx12Wrapper::BeginDraw()
-{
-	auto bbIdx = _swapchain->GetCurrentBackBufferIndex();
-	D3D12_RESOURCE_BARRIER BarrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(_backBuffers[bbIdx].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	_cmdList->ResourceBarrier(1, &BarrierDesc);
-
-	auto rtvH = _rtvDescHeap->GetCPUDescriptorHandleForHeapStart();
-	rtvH.ptr += bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	_cmdList->OMSetRenderTargets(1, &rtvH, true, nullptr);
-
-	float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-	_cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-
-	// ビューポートとシザー矩形
-	_cmdList->RSSetViewports(1, &_viewport);
-	_cmdList->RSSetScissorRects(1, &_scissorRect);
-}
-
 void Dx12Wrapper::EndDraw()
 {
-	auto bbIdx = _swapchain->GetCurrentBackBufferIndex();
-	D3D12_RESOURCE_BARRIER BarrierDesc = CD3DX12_RESOURCE_BARRIER::Transition(_backBuffers[bbIdx].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-	_cmdList->ResourceBarrier(1, &BarrierDesc);
-
 	_cmdList->Close();
 	ID3D12CommandList* cmdlists[] = { _cmdList.Get() };
 	_cmdQueue->ExecuteCommandLists(1, cmdlists);

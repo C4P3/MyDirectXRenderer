@@ -55,3 +55,6 @@ $RECYCLE.BIN/
 *.sph
 *.spa
 *.bmp
+
+# ---- imgui が生成するファイル ---
+imgui.ini

@@ -1,10 +1,12 @@
 #include "Application.h"
+#include "RenderGraph/RenderGraph.h"
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"
 #include "GregoryRenderer.h"
 #include "GregoryActor.h"
 #include "PeraRenderer.h"
+#include "RenderPasses.h"
 #include "Scene.h"
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
@@ -139,6 +141,19 @@ bool ProcessMessages() {
 
 void Application::Run()
 {
+	RenderGraph renderGraph;
+
+	// 初期状態＝「毎フレーム開始時の状態」を登録する
+	renderGraph.RegisterResource("BackBuffer", _dx12->GetCurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT);
+	renderGraph.RegisterResource("DepthBuffer", _dx12->GetDepthBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	renderGraph.RegisterResource("PeraResource1", _dx12->GetPeraResource1(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	renderGraph.RegisterResource("PeraResource2", _dx12->GetPeraResource2(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	renderGraph.AddPass(std::make_unique<Pass1_Main3D>(_dx12.get(), _pmdRenderer.get(), _gregoryRenderer.get(), _scene.get()));
+	renderGraph.AddPass(std::make_unique<Pass2_HorizontalBlur>(_dx12.get(), _peraRenderer.get()));
+	renderGraph.AddPass(std::make_unique<Pass3_VerticalBlurAndUI>(_dx12.get(), _peraRenderer.get()));
+
+
 	// メインループ
 	while (ProcessMessages()) {
 		// --- ImGuiフレーム & UI構築 ---
@@ -156,27 +171,13 @@ void Application::Run()
 		if (_pmdActor) _pmdActor->Update();
 		_gregoryActor->Update();
 
-		// --- 描画 ---
-		// --- パス1: オフスクリーンへ ---
-		_dx12->PreDrawToPera();          // 1枚目に3D
-		_pmdRenderer->Draw(*_scene);
-		_gregoryRenderer->Draw(*_scene);
-		_dx12->PostDrawToPera();
+		//// --- 描画 ---
+		// バックバッファはフレームごとに実体が変わるので毎回差し替える
+		renderGraph.UpdateResource("BackBuffer", _dx12->GetCurrentBackBuffer());
 
-		_dx12->PreDrawToPera2();         // 2枚目に横ぼかし
-		_peraRenderer->DrawHorizontal();
-		_dx12->PostDrawToPera2();
+		renderGraph.Compile();
+		renderGraph.Execute(_dx12->CommandList());
 
-
-		// --- パス2: バックバッファへペラポリゴン ---
-		_dx12->BeginDraw();				// バックバッファに縦ぼかし
-		_peraRenderer->DrawVertical();
-
-		// ImGui
-		_dx12->CommandList()->SetDescriptorHeaps(
-			1, _dx12->GetHeapForImgui().GetAddressOf()
-		);
-		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), _dx12->CommandList());
 		_dx12->EndDraw();
 	}
 }

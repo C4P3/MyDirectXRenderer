@@ -159,7 +159,9 @@
     <ClCompile Include="PeraRenderer.cpp" />
     <ClCompile Include="PMDActor.cpp" />
     <ClCompile Include="PMDRenderer.cpp" />
-    <ClCompile Include="RenderGraph\RenderGraph.cpp" />
+    <ClCompile Include="RenderGraph\Frontend\RenderGraph.cpp" />
+    <ClCompile Include="RenderGraph\Frontend\TexturePool.cpp" />
+    <ClCompile Include="RenderGraph\LegacyRenderGraph.cpp" />
     <ClCompile Include="RenderPasses.cpp" />
     <ClCompile Include="Scene.cpp" />
   </ItemGroup>
@@ -187,7 +189,10 @@
     <ClInclude Include="PeraRenderer.h" />
     <ClInclude Include="PMDActor.h" />
     <ClInclude Include="PMDRenderer.h" />
-    <ClInclude Include="RenderGraph\RenderGraph.h" />
+    <ClInclude Include="RenderGraph\Frontend\CommandContext.h" />
+    <ClInclude Include="RenderGraph\Frontend\RenderGraph.h" />
+    <ClInclude Include="RenderGraph\Frontend\TexturePool.h" />
+    <ClInclude Include="RenderGraph\LegacyRenderGraph.h" />
     <ClInclude Include="RenderPasses.h" />
     <ClInclude Include="Scene.h" />
   </ItemGroup>

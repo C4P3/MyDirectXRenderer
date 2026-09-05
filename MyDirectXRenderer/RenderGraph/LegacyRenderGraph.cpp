@@ -1,4 +1,4 @@
-#include "RenderGraph.h"
+#include "LegacyRenderGraph.h"
 #include <assert.h>
 #include "../d3dx12.h"
 

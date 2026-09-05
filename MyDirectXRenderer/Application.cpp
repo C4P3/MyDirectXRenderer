@@ -1,5 +1,5 @@
 #include "Application.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/LegacyRenderGraph.h"
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"

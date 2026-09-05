@@ -1,14 +1,15 @@
 CXX ?= clang++
-CXXFLAGS := -std=c++17 -Wall -Wextra -g
+RG_DIR   := ../../MyDirectXRenderer/RenderGraph/Frontend
+CXXFLAGS := -std=c++17 -Wall -Wextra -g -I$(RG_DIR)
+
+SRCS := main.cpp $(RG_DIR)/RenderGraph.cpp $(RG_DIR)/TexturePool.cpp
+HDRS := $(RG_DIR)/RenderGraph.h $(RG_DIR)/CommandContext.h $(RG_DIR)/TexturePool.h
 
 # サニタイザ付きでビルドする場合: make SAN=1
 # （このマシンの macOS では ASan ランタイムが起動時に固まったので既定では無効）
 ifdef SAN
 CXXFLAGS += -fsanitize=address,undefined
 endif
-
-SRCS := main.cpp RenderGraph.cpp TexturePool.cpp
-HDRS := RenderGraph.h CommandContext.h TexturePool.h
 
 rgtest: $(SRCS) $(HDRS)
 	$(CXX) $(CXXFLAGS) -o $@ $(SRCS)

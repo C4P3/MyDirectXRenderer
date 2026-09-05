@@ -252,6 +252,45 @@ bool RenderGraph::Compile(TexturePool& pool) {
 
 // --- Execute ---------------------------------------------------------------
 
+// パスの宣言から、書き込み先の一覧を組み立てる。
+// physicalId は Compile() が埋め終わっているので、ここでは引くだけ。
+PassAttachments RenderGraph::CollectAttachments(const PassNode& pass) const {
+    PassAttachments out;
+
+    // MRT のスロット順に並べたいので、いったんスロット付きで集める
+    std::vector<std::pair<uint8_t, Attachment>> colors;
+
+    for (const auto& a : pass.accesses) {
+        if (!IsWrite(a.kind)) continue;
+
+        const auto& r = _resources[a.resource];
+        Attachment att;
+        att.physicalId = r.physicalId;
+        att.width      = r.desc.width;
+        att.height     = r.desc.height;
+        att.load       = a.load;
+        for (int i = 0; i < 4; ++i) att.clearColor[i] = r.desc.clearColor[i];
+        att.clearDepth = r.desc.clearDepth;
+
+        if (a.kind == AccessKind::DepthAttachment) {
+            assert(!out.hasDepth && "1 パスに深度アタッチメントは 1 つまで");
+            out.hasDepth = true;
+            out.depth    = att;
+        } else {
+            colors.push_back({ a.slot, att });
+        }
+    }
+
+    std::sort(colors.begin(), colors.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    for (size_t i = 0; i < colors.size(); ++i) {
+        assert(static_cast<size_t>(colors[i].first) == i && "アタッチメントスロットが歯抜け／重複している");
+        out.colors.push_back(colors[i].second);
+    }
+    return out;
+}
+
 void RenderGraph::Execute(CommandContext& ctx) {
     for (uint16_t i = 0; i < _order.size(); ++i) {
         for (const auto& b : _barriersBeforePass[i]) {
@@ -260,7 +299,7 @@ void RenderGraph::Execute(CommandContext& ctx) {
         }
 
         auto& pass = _passes[_order[i]];
-        ctx.BeginPass(pass.name);
+        ctx.BeginPass(pass.name, CollectAttachments(pass));
         pass.execute(ctx);
         ctx.EndPass();
     }

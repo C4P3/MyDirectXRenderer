@@ -21,10 +21,10 @@ public:
     virtual void Transition(const std::string& resource, uint32_t physicalId,
                             State from, State to) = 0;
 
-    // TODO: DX12 実装ではここでアタッチメント一覧（RTV ハンドルと LoadOp）を受け取り、
-    //       OMSetRenderTargets / Clear*View を呼ぶことになる。
-    virtual void BeginPass(const std::string& name) = 0;
-    virtual void EndPass()                          = 0;
+    // パスが書き込む先。DX12 実装はここで OMSetRenderTargets / Clear*View /
+    // RSSetViewports を済ませるので、execute ラムダは描画だけを行えばよい。
+    virtual void BeginPass(const std::string& name, const PassAttachments& attachments) = 0;
+    virtual void EndPass()                                                              = 0;
 
     // execute ラムダ側から呼ぶ、描画の代わりのマーカー（Mac 検証用）
     virtual void Draw(const std::string& what) = 0;
@@ -36,7 +36,18 @@ public:
     void Transition(const std::string& resource, uint32_t, State from, State to) override {
         log.push_back(resource + ": " + ToString(from) + " -> " + ToString(to));
     }
-    void BeginPass(const std::string& name) override { log.push_back("[" + name + "]"); }
+    void BeginPass(const std::string& name, const PassAttachments& att) override {
+        log.push_back("[" + name + "]");
+        attachments.push_back({ name, att });
+    }
+
+    // パス名 → そのパスのアタッチメント（テストの覗き窓）
+    const PassAttachments* AttachmentsOf(const std::string& name) const {
+        for (const auto& e : attachments)
+            if (e.first == name) return &e.second;
+        return nullptr;
+    }
+    std::vector<std::pair<std::string, PassAttachments>> attachments;
     void EndPass() override {}
     void Draw(const std::string& what) override { log.push_back("  draw " + what); }
 

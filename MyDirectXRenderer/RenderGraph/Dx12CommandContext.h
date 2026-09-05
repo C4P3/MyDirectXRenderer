@@ -25,7 +25,7 @@ public:
     // --- rg::CommandContext ---
     void Transition(const std::string& name, uint32_t physicalId,
                     rg::State from, rg::State to) override;
-    void BeginPass(const std::string& name) override;
+    void BeginPass(const std::string& name, const rg::PassAttachments& attachments) override;
     void EndPass() override;
     void Draw(const std::string& what) override;
 

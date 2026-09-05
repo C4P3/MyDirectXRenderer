@@ -95,6 +95,24 @@ struct VirtualResource {
     State   stateAtFrameEnd = State::Undefined;
 };
 
+// --- アタッチメント：execute の直前にバックエンドへ素通しする情報 -----------
+// グラフのアルゴリズム（辺・カリング・ライフタイム）では一切使わない。
+// DX12 では OMSetRenderTargets / Clear*View / RSSetViewports の材料になる。
+struct Attachment {
+    uint32_t physicalId = kInvalidPhysicalId;
+    uint32_t width      = 0;
+    uint32_t height     = 0;
+    LoadOp   load       = LoadOp::Load;
+    float    clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    float    clearDepth    = 1.0f;
+};
+
+struct PassAttachments {
+    std::vector<Attachment> colors;  // スロット順。歯抜けは想定しない
+    bool       hasDepth = false;
+    Attachment depth;
+};
+
 struct Barrier {
     uint16_t resource = kInvalidIndex;
     State    from     = State::Undefined;
@@ -182,6 +200,7 @@ private:
     };
 
     State FirstRequiredState(uint16_t resource) const;
+    PassAttachments CollectAttachments(const PassNode& pass) const;
 
     std::vector<PassNode>            _passes;
     std::vector<VirtualResource>     _resources;

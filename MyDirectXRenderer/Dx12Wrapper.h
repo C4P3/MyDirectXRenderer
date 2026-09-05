@@ -57,6 +57,11 @@ public:
     UINT BackBufferCount() const { return static_cast<UINT>(_backBuffers.size()); }
     UINT CurrentBackBufferIndex() const { return _swapchain->GetCurrentBackBufferIndex(); }
     ID3D12Resource* GetBackBuffer(UINT index) const { return _backBuffers[index].Get(); }
+    D3D12_CPU_DESCRIPTOR_HANDLE GetBackBufferRTV(UINT index) const {
+        auto rtvH = _rtvDescHeap->GetCPUDescriptorHandleForHeapStart();
+        rtvH.ptr += index * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        return rtvH;
+    }
     D3D12_CPU_DESCRIPTOR_HANDLE GetDSV() const {
         return _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
     }

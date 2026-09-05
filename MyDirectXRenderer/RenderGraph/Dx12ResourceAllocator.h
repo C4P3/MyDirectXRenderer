@@ -25,10 +25,14 @@ public:
     // グラフの外で作られた実体を預かり、id を発番する。
     // 実体が生きている限り id は有効なので、スワップチェーンのバッファは
     // 初期化時に全枚数を登録しておき、毎フレーム該当する id で Import すればよい。
-    uint32_t RegisterExternal(ID3D12Resource* res);
+    // ディスクリプタも一緒に預かる（段階 3 で Allocate() が自分で確保するようになる部分）。
+    uint32_t RegisterExternalRenderTarget(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE rtv);
+    uint32_t RegisterExternalDepth(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
 
-    // physicalId → 実体。未登録なら nullptr。
-    ID3D12Resource* Resolve(uint32_t physicalId) const;
+    // physicalId → 実体 / ディスクリプタ。未登録なら nullptr、または ptr == 0。
+    ID3D12Resource*             Resolve(uint32_t physicalId) const;
+    D3D12_CPU_DESCRIPTOR_HANDLE RtvOf(uint32_t physicalId) const;
+    D3D12_CPU_DESCRIPTOR_HANDLE DsvOf(uint32_t physicalId) const;
 
     // --- rg::IResourceAllocator ---
     uint32_t Allocate(const std::string& name, const rg::TextureDesc& desc,
@@ -39,10 +43,14 @@ private:
     struct Entry {
         // Allocate() したものだけ所有する。external は参照のみ。
         Microsoft::WRL::ComPtr<ID3D12Resource> owned;
-        ID3D12Resource* ptr      = nullptr;
-        bool            external = false;
-        bool            alive    = false;
+        ID3D12Resource*             ptr      = nullptr;
+        D3D12_CPU_DESCRIPTOR_HANDLE rtv      = {};
+        D3D12_CPU_DESCRIPTOR_HANDLE dsv      = {};
+        bool                        external = false;
+        bool                        alive    = false;
     };
+
+    uint32_t Add(const Entry& e);
 
     ID3D12Device*         _dev = nullptr;
     std::vector<Entry>    _entries;

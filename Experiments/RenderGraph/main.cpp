@@ -103,6 +103,50 @@ static void BuildCurrentGraph(RenderGraph& g) {
         [](const ImGuiPass&, CommandContext& ctx) { ctx.Draw("imgui"); });
 }
 
+// === テスト: アタッチメント情報が execute の直前に渡る =====================
+static void TestAttachments() {
+    std::printf("[TestAttachments]\n");
+    Pooled       h;
+    RenderGraph& g = h.graph;
+
+    BuildCurrentGraph(g);
+    CHECK(h.Compile());
+    LoggingCommandContext ctx;
+    g.Execute(ctx);
+
+    // 3D パス：カラー 1 枚 + 深度、どちらも Clear
+    const auto* scene = ctx.AttachmentsOf("3D");
+    CHECK(scene != nullptr);
+    if (scene) {
+        CHECK(scene->colors.size() == 1);
+        CHECK(scene->colors[0].physicalId == g.FindResource("pera1")->physicalId);
+        CHECK(scene->colors[0].load == LoadOp::Clear);
+        CHECK(scene->colors[0].width == 1280 && scene->colors[0].height == 720);
+        CHECK(scene->hasDepth);
+        CHECK(scene->depth.physicalId == g.FindResource("depth")->physicalId);
+        CHECK(scene->depth.load == LoadOp::Clear);
+    }
+
+    // BlurH パス：読みは含まれない。書き先の pera2 だけ
+    const auto* blurH = ctx.AttachmentsOf("BlurH");
+    CHECK(blurH != nullptr);
+    if (blurH) {
+        CHECK(blurH->colors.size() == 1);
+        CHECK(blurH->colors[0].physicalId == g.FindResource("pera2")->physicalId);
+        CHECK(!blurH->hasDepth);
+    }
+
+    // ImGui パス：バックバッファに Load で上書きする（クリアしない）
+    const auto* imgui = ctx.AttachmentsOf("ImGui");
+    CHECK(imgui != nullptr);
+    if (imgui) {
+        CHECK(imgui->colors.size() == 1);
+        CHECK(imgui->colors[0].physicalId == kFakeBackbufferId);
+        CHECK(imgui->colors[0].load == LoadOp::Load);
+        CHECK(!imgui->hasDepth);
+    }
+}
+
 // === テスト 1: 実行順とバリア ==============================================
 static void TestCurrentGraph() {
     std::printf("[TestCurrentGraph]\n");
@@ -441,6 +485,7 @@ static void TestBudget() {
 
 int main() {
     TestCurrentGraph();
+    TestAttachments();
     TestUsageFlags();
     TestCulling();
     TestShadowMap();

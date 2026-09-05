@@ -30,9 +30,60 @@ void Dx12CommandContext::Transition(const std::string& name, uint32_t physicalId
     _cmdList->ResourceBarrier(1, &barrier);
 }
 
-void Dx12CommandContext::BeginPass(const std::string&) {
-    // 段階 2 でここにアタッチメント情報を渡し、
-    // OMSetRenderTargets / Clear*View / RSSetViewports を移してくる。
+void Dx12CommandContext::BeginPass(const std::string&, const rg::PassAttachments& att) {
+    // --- 書き込み先を並べる ---
+    D3D12_CPU_DESCRIPTOR_HANDLE rtvs[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
+    const UINT colorCount = static_cast<UINT>(att.colors.size());
+    assert(colorCount <= D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
+
+    for (UINT i = 0; i < colorCount; ++i) {
+        rtvs[i] = _allocator.RtvOf(att.colors[i].physicalId);
+        assert(rtvs[i].ptr != 0 && "RTV が登録されていないリソースに書こうとしている");
+    }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE dsv = {};
+    if (att.hasDepth) {
+        dsv = _allocator.DsvOf(att.depth.physicalId);
+        assert(dsv.ptr != 0 && "DSV が登録されていないリソースに書こうとしている");
+    }
+
+    _cmdList->OMSetRenderTargets(colorCount, colorCount > 0 ? rtvs : nullptr, FALSE,
+                                 att.hasDepth ? &dsv : nullptr);
+
+    // --- LoadOp::Clear の宣言だけでクリアが決まる ---
+    for (UINT i = 0; i < colorCount; ++i) {
+        if (att.colors[i].load == rg::LoadOp::Clear)
+            _cmdList->ClearRenderTargetView(rtvs[i], att.colors[i].clearColor, 0, nullptr);
+    }
+    if (att.hasDepth && att.depth.load == rg::LoadOp::Clear) {
+        _cmdList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH,
+                                        att.depth.clearDepth, 0, 0, nullptr);
+    }
+
+    // --- ビューポートは書き込み先のサイズから決める ---
+    // 解像度の違うパス（シャドウマップなど）が来ても、パス側で気にしなくてよくなる。
+    const rg::Attachment* size = nullptr;
+    if (colorCount > 0)   size = &att.colors[0];
+    else if (att.hasDepth) size = &att.depth;
+
+    if (size != nullptr) {
+        D3D12_VIEWPORT viewport = {};
+        viewport.TopLeftX = 0.0f;
+        viewport.TopLeftY = 0.0f;
+        viewport.Width    = static_cast<float>(size->width);
+        viewport.Height   = static_cast<float>(size->height);
+        viewport.MinDepth = 0.0f;
+        viewport.MaxDepth = 1.0f;
+
+        D3D12_RECT scissor = {};
+        scissor.left   = 0;
+        scissor.top    = 0;
+        scissor.right  = static_cast<LONG>(size->width);
+        scissor.bottom = static_cast<LONG>(size->height);
+
+        _cmdList->RSSetViewports(1, &viewport);
+        _cmdList->RSSetScissorRects(1, &scissor);
+    }
 }
 
 void Dx12CommandContext::EndPass() {}

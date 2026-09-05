@@ -155,6 +155,9 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 		rg::Format::RGBA8_UNorm, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
 	const rg::TextureDesc depthDesc{ window_width, window_height,
 		rg::Format::D32_Float, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
+	// クリア値は desc が持ち、LoadOp::Clear の宣言だけでバックエンドがクリアする
+	const rg::TextureDesc backbufferDesc{ window_width, window_height,
+		rg::Format::RGBA8_UNorm, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
 
 	// 段階 1 では実体はすべて Dx12Wrapper が持っているので 4 つとも Import。
 	// 段階 3 で pera / depth を graph.Create() に変えると TexturePool が実体を持つようになる。
@@ -165,7 +168,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 		State::PixelShaderResource, State::Undefined);
 	TextureHandle depth = graph.Import("depth", depthDesc, ids.depth,
 		State::DepthWrite, State::Undefined);
-	TextureHandle bb = graph.Import("backbuffer", colorDesc, ids.backbuffer,
+	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, ids.backbuffer,
 		State::Present, State::Present);
 
 	// --- 1 枚目のオフスクリーンに 3D を描く ---
@@ -175,19 +178,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 			d.color = pera1 = b.SetRenderAttachment(pera1, 0, LoadOp::Clear);
 			d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
 		},
-		[this](const ScenePass&, rg::CommandContext& ctx) {
-			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
-			auto rtvH = _dx12->PeraRTVHeap()->GetCPUDescriptorHandleForHeapStart();
-			auto dsvH = _dx12->GetDSV();
-			cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
-
-			float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
-			cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-			cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-
-			cmdList->RSSetViewports(1, _dx12->GetViewport());
-			cmdList->RSSetScissorRects(1, _dx12->GetScissorRect());
-
+		[this](const ScenePass&, rg::CommandContext&) {
 			_pmdRenderer->Draw(*_scene);
 			_gregoryRenderer->Draw(*_scene);
 		});
@@ -199,19 +190,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 			d.src = b.SampledRead(pera1);
 			pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
 		},
-		[this](const BlurPass&, rg::CommandContext& ctx) {
-			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
-			auto rtvH = _dx12->PeraRTVHeap()->GetCPUDescriptorHandleForHeapStart();
-			rtvH.ptr += _dx12->Device()->GetDescriptorHandleIncrementSize(
-				D3D12_DESCRIPTOR_HEAP_TYPE_RTV);  // 2 枚目
-			cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
-
-			float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
-			cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-
-			cmdList->RSSetViewports(1, _dx12->GetViewport());
-			cmdList->RSSetScissorRects(1, _dx12->GetScissorRect());
-
+		[this](const BlurPass&, rg::CommandContext&) {
 			_peraRenderer->DrawHorizontal();
 		});
 
@@ -221,17 +200,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 			d.src = b.SampledRead(pera2);
 			bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);  // bb@v0 -> bb@v1
 		},
-		[this](const BlurPass&, rg::CommandContext& ctx) {
-			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
-			auto rtvH = _dx12->GetCurrentBackBufferRTV();
-			cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
-
-			float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-			cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
-
-			cmdList->RSSetViewports(1, _dx12->GetViewport());
-			cmdList->RSSetScissorRects(1, _dx12->GetScissorRect());
-
+		[this](const BlurPass&, rg::CommandContext&) {
 			_peraRenderer->DrawVertical();
 		});
 
@@ -243,8 +212,6 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 		},
 		[this](const ImGuiPass&, rg::CommandContext& ctx) {
 			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
-			auto rtvH = _dx12->GetCurrentBackBufferRTV();
-			cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
 
 			ID3D12DescriptorHeap* imguiHeaps[] = { _dx12->GetHeapForImgui().Get() };
 			cmdList->SetDescriptorHeaps(1, imguiHeaps);
@@ -264,14 +231,18 @@ void Application::Run()
 	// 毎フレーム RegisterExternal すると id が増え続けてしまう。
 	std::vector<uint32_t> backbufferIds;
 	for (UINT i = 0; i < _dx12->BackBufferCount(); ++i) {
-		backbufferIds.push_back(allocator.RegisterExternal(_dx12->GetBackBuffer(i)));
+		backbufferIds.push_back(allocator.RegisterExternalRenderTarget(
+			_dx12->GetBackBuffer(i), _dx12->GetBackBufferRTV(i)));
 	}
 
-	// オフスクリーンと深度も、段階 3 までは Dx12Wrapper が持つ実体を預ける。
+	// オフスクリーンと深度も、段階 3 までは Dx12Wrapper が持つ実体とディスクリプタを預ける。
+	auto peraRTV = _dx12->PeraRTVHeap()->GetCPUDescriptorHandleForHeapStart();
 	ImportedResourceIds ids;
-	ids.pera1 = allocator.RegisterExternal(_dx12->GetPeraResource1());
-	ids.pera2 = allocator.RegisterExternal(_dx12->GetPeraResource2());
-	ids.depth = allocator.RegisterExternal(_dx12->GetDepthBuffer());
+	ids.pera1 = allocator.RegisterExternalRenderTarget(_dx12->GetPeraResource1(), peraRTV);
+	peraRTV.ptr += _dx12->Device()->GetDescriptorHandleIncrementSize(
+		D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	ids.pera2 = allocator.RegisterExternalRenderTarget(_dx12->GetPeraResource2(), peraRTV);
+	ids.depth = allocator.RegisterExternalDepth(_dx12->GetDepthBuffer(), _dx12->GetDSV());
 
 	// メインループ
 	while (ProcessMessages()) {

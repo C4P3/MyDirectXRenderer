@@ -32,9 +32,6 @@ private:
     Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
     UINT64 _fenceVal = 0;
 
-    D3D12_VIEWPORT _viewport = {};
-    D3D12_RECT _scissorRect = {};
-
     bool CreateMultiPassResource();
 public:
     ID3D12Device* Device() const { return _dev.Get(); }
@@ -48,8 +45,6 @@ public:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetDSVHeap() const { return _dsvDescHeap; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PeraRTVHeap() const { return _peraRTVHeap; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PeraSRVHeap() const { return _peraSRVHeap; }
-    const D3D12_VIEWPORT* GetViewport() const { return &_viewport; }
-    const D3D12_RECT* GetScissorRect() const { return &_scissorRect; }
     ID3D12Resource* GetCurrentBackBuffer() const {
         return _backBuffers[_swapchain->GetCurrentBackBufferIndex()].Get();
     }
@@ -66,11 +61,6 @@ public:
         return _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
     }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferRTV() const {
-        auto rtvH = _rtvDescHeap->GetCPUDescriptorHandleForHeapStart();
-        rtvH.ptr += _swapchain->GetCurrentBackBufferIndex() * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-        return rtvH;
-    }
     ID3D12Resource* GetDepthBuffer() const { return _depthBuffer.Get(); }
     ID3D12Resource* GetPeraResource1() const { return _peraResource1.Get(); }
     ID3D12Resource* GetPeraResource2() const { return _peraResource2.Get(); }

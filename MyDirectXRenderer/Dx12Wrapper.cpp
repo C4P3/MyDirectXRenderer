@@ -206,18 +206,6 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 	if (FAILED(result)) return false;
 
-	_viewport.Width = static_cast<float>(window_width);
-	_viewport.Height = static_cast<float>(window_height);
-	_viewport.TopLeftX = 0;
-	_viewport.TopLeftY = 0;
-	_viewport.MaxDepth = 1.0f;
-	_viewport. MinDepth = 0.0f;
-
-	_scissorRect.top = 0;
-	_scissorRect.left = 0;
-	_scissorRect.right = window_width;
-	_scissorRect.bottom = window_height;
-
 	// マルチパスレンダリング用
 	CreateMultiPassResource();
 

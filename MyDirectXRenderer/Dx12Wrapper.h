@@ -17,22 +17,16 @@ private:
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> _cmdList;
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> _cmdQueue;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvDescHeap;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _dsvDescHeap;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _peraRTVHeap;
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _peraSRVHeap;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeapForImgui();
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _heapForImgui;
 
 
+    // オフスクリーンと深度は RenderGraph（TexturePool）が持つ。ここはバックバッファだけ。
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _backBuffers;
-    Microsoft::WRL::ComPtr<ID3D12Resource> _depthBuffer;
-    Microsoft::WRL::ComPtr<ID3D12Resource> _peraResource1;
-    Microsoft::WRL::ComPtr<ID3D12Resource> _peraResource2;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
     UINT64 _fenceVal = 0;
 
-    bool CreateMultiPassResource();
 public:
     ID3D12Device* Device() const { return _dev.Get(); }
     ID3D12GraphicsCommandList* CommandList() const { return _cmdList.Get(); }
@@ -42,9 +36,6 @@ public:
     UINT64& FenceVal() { return _fenceVal; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetHeapForImgui() const { return _heapForImgui; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetRTVHeap() const { return _rtvDescHeap; }
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetDSVHeap() const { return _dsvDescHeap; }
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PeraRTVHeap() const { return _peraRTVHeap; }
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> PeraSRVHeap() const { return _peraSRVHeap; }
     ID3D12Resource* GetCurrentBackBuffer() const {
         return _backBuffers[_swapchain->GetCurrentBackBufferIndex()].Get();
     }
@@ -57,14 +48,6 @@ public:
         rtvH.ptr += index * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         return rtvH;
     }
-    D3D12_CPU_DESCRIPTOR_HANDLE GetDSV() const {
-        return _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
-    }
-
-    ID3D12Resource* GetDepthBuffer() const { return _depthBuffer.Get(); }
-    ID3D12Resource* GetPeraResource1() const { return _peraResource1.Get(); }
-    ID3D12Resource* GetPeraResource2() const { return _peraResource2.Get(); }
-
     // 関数の宣言のみを記述
     bool Init(HWND hwnd, int window_width, int window_height);
     void EndDraw();

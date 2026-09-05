@@ -20,7 +20,9 @@ public:
     Dx12CommandContext(ID3D12GraphicsCommandList* cmdList, const Dx12ResourceAllocator& allocator)
         : _cmdList(cmdList), _allocator(allocator) {}
 
-    ID3D12GraphicsCommandList* List() const { return _cmdList; }
+    ID3D12GraphicsCommandList*   List() const { return _cmdList; }
+    // execute ラムダが SampledRead したテクスチャの SRV を引くのに使う
+    const Dx12ResourceAllocator& Allocator() const { return _allocator; }
 
     // --- rg::CommandContext ---
     void Transition(const std::string& name, uint32_t physicalId,

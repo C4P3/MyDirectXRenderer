@@ -37,17 +37,9 @@ private:
     std::unique_ptr<PeraRenderer> _peraRenderer;
     std::unique_ptr<Scene> _scene;
 
-    // グラフの外に実体があるリソースの physicalId。
-    // 段階 3 で pera / depth は TexturePool に移るので、最後は backbuffer だけが残る。
-    struct ImportedResourceIds {
-        uint32_t backbuffer = 0;
-        uint32_t pera1 = 0;
-        uint32_t pera2 = 0;
-        uint32_t depth = 0;
-    };
-
     // 毎フレーム呼ぶ。パスとリソースの宣言だけを行い、GPU コマンドは積まない。
-    void BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& ids);
+    // グラフの外に実体があるのはバックバッファだけなので、その physicalId を渡す。
+    void BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId);
 public:
     // 唯一のインスタンスを取得する（シングルトンへのアクセスポイント）
     static Application& Instance();

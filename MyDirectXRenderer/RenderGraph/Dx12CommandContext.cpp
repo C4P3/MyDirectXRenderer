@@ -4,20 +4,6 @@
 
 #include "../d3dx12.h"
 
-D3D12_RESOURCE_STATES ToD3D12(rg::State s) {
-    switch (s) {
-    case rg::State::Present:             return D3D12_RESOURCE_STATE_PRESENT;
-    case rg::State::RenderTarget:        return D3D12_RESOURCE_STATE_RENDER_TARGET;
-    case rg::State::PixelShaderResource: return D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-    case rg::State::DepthWrite:          return D3D12_RESOURCE_STATE_DEPTH_WRITE;
-    case rg::State::Undefined:
-    default:
-        // Undefined は「指定なし」の番兵。バリアの端点に来ることはない。
-        assert(false && "rg::State::Undefined has no D3D12 counterpart");
-        return D3D12_RESOURCE_STATE_COMMON;
-    }
-}
-
 void Dx12CommandContext::Transition(const std::string& name, uint32_t physicalId,
                                     rg::State from, rg::State to) {
     (void)name;  // デバッグ用。実体を指すのは physicalId の方

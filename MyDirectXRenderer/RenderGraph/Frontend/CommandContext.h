@@ -28,6 +28,15 @@ public:
 
     // execute ラムダ側から呼ぶ、描画の代わりのマーカー（Mac 検証用）
     virtual void Draw(const std::string& what) = 0;
+
+    // execute ラムダが PassData のハンドルから物理リソースを引くための入口。
+    // SampledRead したテクスチャの SRV をバックエンドから取るのに使う。
+    // Execute() の実行中だけ有効。
+    uint32_t PhysicalOf(TextureHandle h) const;
+
+private:
+    friend class RenderGraph;
+    const RenderGraph* _graph = nullptr;  // Execute() の間だけ張られる
 };
 
 // Mac 用のダミーバックエンド。起きたことを 1 行ずつ積むだけ。

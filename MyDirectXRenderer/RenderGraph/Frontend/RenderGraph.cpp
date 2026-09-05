@@ -195,19 +195,22 @@ bool RenderGraph::Compile(TexturePool& pool) {
     // カリングされたリソース（firstUse == kNoPass）は確保しない。
     // = Unity の「フレームが使用しないリソースの割り当てを回避する」に相当。
     bool ok = true;
-    for (auto& r : _resources) {
+    for (uint16_t ri = 0; ri < _resources.size(); ++ri) {
+        auto& r = _resources[ri];
         r.poolEntry = kInvalidPoolEntry;
         // imported は Import() 時点で physicalId が入っているので触らない。
         if (r.imported || r.firstUse == kNoPass) continue;
         r.physicalId = kInvalidPhysicalId;
 
-        r.poolEntry = pool.Acquire(r.name, r.desc, r.usageFlags);
+        // 最初に必要な状態はこの時点で分かる（実行順は確定済み）。
+        // その状態で作らせることで 1 フレーム目の初期バリアを不要にする。
+        r.poolEntry = pool.Acquire(r.name, r.desc, r.usageFlags, FirstRequiredState(ri));
         if (r.poolEntry == kInvalidPoolEntry) {
             _allocationFailures.push_back(r.name);  // 予算超過。事前に弾かれた
             ok = false;
             continue;
         }
-        // 状態は物理リソースが持つ。新規確保なら Undefined。
+        // 状態は物理リソースが持つ（新規確保なら上で渡した initialState）。
         r.physicalId        = pool.PhysicalId(r.poolEntry);
         r.stateAtFrameStart = pool.StateOf(r.poolEntry);
     }
@@ -291,7 +294,15 @@ PassAttachments RenderGraph::CollectAttachments(const PassNode& pass) const {
     return out;
 }
 
+uint32_t CommandContext::PhysicalOf(TextureHandle h) const {
+    assert(_graph != nullptr && "PhysicalOf() は execute の中でしか使えない");
+    assert(h.IsValid());
+    return _graph->Resource(h).physicalId;
+}
+
 void RenderGraph::Execute(CommandContext& ctx) {
+    ctx._graph = this;
+
     for (uint16_t i = 0; i < _order.size(); ++i) {
         for (const auto& b : _barriersBeforePass[i]) {
             const auto& r = _resources[b.resource];
@@ -307,6 +318,8 @@ void RenderGraph::Execute(CommandContext& ctx) {
         const auto& r = _resources[b.resource];
         ctx.Transition(r.name, r.physicalId, b.from, b.to);
     }
+
+    ctx._graph = nullptr;
 }
 
 void RenderGraph::Clear() {

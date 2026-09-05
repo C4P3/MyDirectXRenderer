@@ -145,7 +145,7 @@ bool ProcessMessages() {
 
 // パスとリソースの宣言。ここには GPU コマンドを一切積まない。
 // ハンドルはフレーム限りの値（graph.Clear() で無効になる）なので、毎フレームここで作り直す。
-void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& ids)
+void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 {
 	using rg::LoadOp;
 	using rg::State;
@@ -159,16 +159,14 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 	const rg::TextureDesc backbufferDesc{ window_width, window_height,
 		rg::Format::RGBA8_UNorm, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
 
-	// 段階 1 では実体はすべて Dx12Wrapper が持っているので 4 つとも Import。
-	// 段階 3 で pera / depth を graph.Create() に変えると TexturePool が実体を持つようになる。
+	// オフスクリーンと深度は TexturePool が実体を持つ。毎フレーム宣言し直すが、
+	// 同じ名前と desc なら同じ物理リソースが返ってくるので確保は初回だけ。
+	// 外に実体があるのはバックバッファだけで、これは Import する。
 	// requiredFinalState を持つリソースがカリングの根になるので、backbuffer にだけ指定する。
-	TextureHandle pera1 = graph.Import("pera1", colorDesc, ids.pera1,
-		State::PixelShaderResource, State::Undefined);
-	TextureHandle pera2 = graph.Import("pera2", colorDesc, ids.pera2,
-		State::PixelShaderResource, State::Undefined);
-	TextureHandle depth = graph.Import("depth", depthDesc, ids.depth,
-		State::DepthWrite, State::Undefined);
-	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, ids.backbuffer,
+	TextureHandle pera1 = graph.Create("pera1", colorDesc);
+	TextureHandle pera2 = graph.Create("pera2", colorDesc);
+	TextureHandle depth = graph.Create("depth", depthDesc);
+	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
 
 	// --- 1 枚目のオフスクリーンに 3D を描く ---
@@ -190,8 +188,12 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 			d.src = b.SampledRead(pera1);
 			pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
 		},
-		[this](const BlurPass&, rg::CommandContext&) {
-			_peraRenderer->DrawHorizontal();
+		[this](const BlurPass& d, rg::CommandContext& ctx) {
+			// 読む先はパスの宣言（SampledRead）で決まっている。
+			// ハンドル → physicalId → SRV とたどるだけで、添字は出てこない。
+			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			_peraRenderer->DrawHorizontal(allocator.SrvHeap(),
+				allocator.SrvOf(ctx.PhysicalOf(d.src)));
 		});
 
 	// --- 縦ぼかし：2 枚目を読んでバックバッファへ ---
@@ -200,8 +202,10 @@ void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& 
 			d.src = b.SampledRead(pera2);
 			bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);  // bb@v0 -> bb@v1
 		},
-		[this](const BlurPass&, rg::CommandContext&) {
-			_peraRenderer->DrawVertical();
+		[this](const BlurPass& d, rg::CommandContext& ctx) {
+			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			_peraRenderer->DrawVertical(allocator.SrvHeap(),
+				allocator.SrvOf(ctx.PhysicalOf(d.src)));
 		});
 
 	// --- ImGui：バックバッファに上書きする。bb@v1 -> bb@v2 で BlurV の後ろに並ぶ ---
@@ -235,15 +239,6 @@ void Application::Run()
 			_dx12->GetBackBuffer(i), _dx12->GetBackBufferRTV(i)));
 	}
 
-	// オフスクリーンと深度も、段階 3 までは Dx12Wrapper が持つ実体とディスクリプタを預ける。
-	auto peraRTV = _dx12->PeraRTVHeap()->GetCPUDescriptorHandleForHeapStart();
-	ImportedResourceIds ids;
-	ids.pera1 = allocator.RegisterExternalRenderTarget(_dx12->GetPeraResource1(), peraRTV);
-	peraRTV.ptr += _dx12->Device()->GetDescriptorHandleIncrementSize(
-		D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	ids.pera2 = allocator.RegisterExternalRenderTarget(_dx12->GetPeraResource2(), peraRTV);
-	ids.depth = allocator.RegisterExternalDepth(_dx12->GetDepthBuffer(), _dx12->GetDSV());
-
 	// メインループ
 	while (ProcessMessages()) {
 		// --- ImGuiフレーム & UI構築 ---
@@ -263,13 +258,11 @@ void Application::Run()
 
 		// --- 描画 ---
 		// バックバッファはフレームごとに実体が変わるので、その枚の id で Import する
-		ids.backbuffer = backbufferIds[_dx12->CurrentBackBufferIndex()];
-
 		graph.Clear();
-		BuildGraph(graph, ids);
+		BuildGraph(graph, backbufferIds[_dx12->CurrentBackBufferIndex()]);
 
 		pool.BeginFrame();
-		// 段階 1 では確保が起きないので失敗しない。予算超過の扱いは段階 4 で。
+		// 予算を設定していないので今は失敗しない。超過時の扱いは段階 4 で。
 		const bool compiled = graph.Compile(pool);
 		assert(compiled && "RenderGraph::Compile failed");
 		(void)compiled;

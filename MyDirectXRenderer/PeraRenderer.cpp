@@ -258,21 +258,16 @@ bool PeraRenderer::Init()
 }
 
 // 描画コマンドの積み込み
-void PeraRenderer::Draw(UINT srvIndex, ID3D12PipelineState* pso)
+void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
+	ID3D12PipelineState* pso)
 {
 	auto cmdList = _dx12.CommandList();
 
 	cmdList->SetPipelineState(pso);
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
-	auto heap = _dx12.PeraSRVHeap().Get();
-	cmdList->SetDescriptorHeaps(1, &heap);                     // ヒープをセット
-
-	auto handle = heap->GetGPUDescriptorHandleForHeapStart();
-	handle.ptr += srvIndex * _dx12.Device()->GetDescriptorHandleIncrementSize(
-		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);// srvIndex番に関連付ける
-
-	cmdList->SetGraphicsRootDescriptorTable(0, handle);
+	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // ヒープをセット
+	cmdList->SetGraphicsRootDescriptorTable(0, srv);
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -280,5 +275,7 @@ void PeraRenderer::Draw(UINT srvIndex, ID3D12PipelineState* pso)
 	cmdList->DrawInstanced(4, 1, 0, 0);
 }
 
-void PeraRenderer::DrawHorizontal() { Draw(0, _psoHorizontal.Get()); } // 1枚目を読む
-void PeraRenderer::DrawVertical() { Draw(1, _psoVertical.Get()); }   // 2枚目を読む
+void PeraRenderer::DrawHorizontal(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv)
+{ Draw(srvHeap, srv, _psoHorizontal.Get()); }
+void PeraRenderer::DrawVertical(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv)
+{ Draw(srvHeap, srv, _psoVertical.Get()); }

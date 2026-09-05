@@ -147,6 +147,66 @@ static void TestAttachments() {
     }
 }
 
+// === テスト: 生成時の初期状態と、execute からのハンドル解決 =================
+static void TestInitialStateAndResolve() {
+    std::printf("[TestInitialStateAndResolve]\n");
+    Pooled       h;
+    RenderGraph& g = h.graph;
+
+    const TextureDesc colorDesc{ 1280, 720, Format::RGBA8_UNorm, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
+    const TextureDesc depthDesc{ 1280, 720, Format::D32_Float, { 1, 1, 1, 1 }, 1.0f };
+
+    TextureHandle color = g.Create("color", colorDesc);
+    TextureHandle depth = g.Create("depth", depthDesc);
+    TextureHandle bb    = g.Import("backbuffer", colorDesc, kFakeBackbufferId,
+                                   State::Present, State::Present);
+
+    struct ScenePass { TextureHandle color, depth; };
+    g.AddPass<ScenePass>(
+        "3D",
+        [&](RenderGraph::Builder& b, ScenePass& d) {
+            d.color = color = b.SetRenderAttachment(color, 0, LoadOp::Clear);
+            d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
+        },
+        [](const ScenePass&, CommandContext&) {});
+
+    // execute の中でハンドルから物理リソースを引けることを確かめる
+    uint32_t resolved = kInvalidPhysicalId;
+    struct CopyPass { TextureHandle src; };
+    g.AddPass<CopyPass>(
+        "Present",
+        [&](RenderGraph::Builder& b, CopyPass& d) {
+            d.src = b.SampledRead(color);
+            bb    = b.SetRenderAttachment(bb, 0, LoadOp::Clear);
+        },
+        [&resolved](const CopyPass& d, CommandContext& ctx) {
+            resolved = ctx.PhysicalOf(d.src);
+        });
+
+    CHECK(h.Compile());
+    LoggingCommandContext ctx;
+    g.Execute(ctx);
+
+    // 「最初に必要な状態」で作られるので 1 フレーム目に初期バリアが要らない
+    CHECK(h.alloc.records.size() == 2);
+    if (h.alloc.records.size() == 2) {
+        CHECK(h.alloc.records[0].name == "color");
+        CHECK(h.alloc.records[0].initialState == State::RenderTarget);
+        CHECK(h.alloc.records[1].name == "depth");
+        CHECK(h.alloc.records[1].initialState == State::DepthWrite);
+    }
+    // color は最初から RenderTarget なので遷移は「RT -> SRV」の 1 本だけ
+    CheckList("transitions", ctx.Transitions(),
+              {
+                  "color: RenderTarget -> PixelShaderResource",
+                  "backbuffer: Present -> RenderTarget",
+                  "backbuffer: RenderTarget -> Present",
+              });
+
+    CHECK(resolved != kInvalidPhysicalId);
+    CHECK(resolved == g.FindResource("color")->physicalId);
+}
+
 // === テスト 1: 実行順とバリア ==============================================
 static void TestCurrentGraph() {
     std::printf("[TestCurrentGraph]\n");
@@ -486,6 +546,7 @@ static void TestBudget() {
 int main() {
     TestCurrentGraph();
     TestAttachments();
+    TestInitialStateAndResolve();
     TestUsageFlags();
     TestCulling();
     TestShadowMap();

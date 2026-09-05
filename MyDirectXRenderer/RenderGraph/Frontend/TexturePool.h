@@ -24,8 +24,13 @@ public:
 
     // usageFlags は Compile() のステップ 1 で導出したもの。
     // D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET などに翻訳される。
+    //
+    // initialState は「このリソースが最初に必要とする状態」。DX12 では生成時に
+    // 状態を決めなければならないので、グラフ側の想定と食い違わないよう外から渡す。
+    // これのおかげで 1 フレーム目に初期バリアが要らない。
     virtual uint32_t Allocate(const std::string& name, const TextureDesc& desc,
-                              uint8_t usageFlags, size_t sizeBytes) = 0;
+                              uint8_t usageFlags, size_t sizeBytes,
+                              State initialState) = 0;
     virtual void     Release(uint32_t physicalId)                   = 0;
 };
 
@@ -36,12 +41,13 @@ public:
         std::string name;
         size_t      sizeBytes = 0;
         uint8_t     usageFlags = 0;
+        State       initialState = State::Undefined;
         bool        alive = true;
     };
 
     uint32_t Allocate(const std::string& name, const TextureDesc&, uint8_t usageFlags,
-                      size_t sizeBytes) override {
-        records.push_back(Record{ name, sizeBytes, usageFlags, true });
+                      size_t sizeBytes, State initialState) override {
+        records.push_back(Record{ name, sizeBytes, usageFlags, initialState, true });
         ++allocateCount;
         return static_cast<uint32_t>(records.size() - 1);
     }
@@ -81,8 +87,10 @@ public:
     size_t BudgetBytes() const { return _budgetBytes; }
 
     void BeginFrame();
-    // 予算超過なら kInvalidPoolEntry を返す（事前に弾く）
-    uint32_t Acquire(const std::string& name, const TextureDesc& desc, uint8_t usageFlags);
+    // 予算超過なら kInvalidPoolEntry を返す（事前に弾く）。
+    // initialState は新規確保のときだけ使う（既存を引くならその状態が生きている）。
+    uint32_t Acquire(const std::string& name, const TextureDesc& desc, uint8_t usageFlags,
+                     State initialState = State::Undefined);
 
     State StateOf(uint32_t entry) const { return _entries[entry].state; }
     void  SetState(uint32_t entry, State s) { _entries[entry].state = s; }

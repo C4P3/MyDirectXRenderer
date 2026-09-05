@@ -39,7 +39,7 @@ void TexturePool::BeginFrame() {
 }
 
 uint32_t TexturePool::Acquire(const std::string& name, const TextureDesc& desc,
-                              uint8_t usageFlags) {
+                              uint8_t usageFlags, State initialState) {
     const uint64_t hash = HashDesc(desc);
 
     // --- 既存エントリを探す：名前 + desc ハッシュの複合キー ---
@@ -65,8 +65,8 @@ uint32_t TexturePool::Acquire(const std::string& name, const TextureDesc& desc,
     e.descHash         = hash;
     e.desc             = desc;
     e.sizeBytes        = size;
-    e.physicalId       = _allocator.Allocate(name, desc, usageFlags, size);
-    e.state            = State::Undefined;  // 新規なので「最初に必要な状態で作る」扱い
+    e.physicalId       = _allocator.Allocate(name, desc, usageFlags, size, initialState);
+    e.state            = initialState;  // 「最初に必要な状態で作る」ので初期バリアが要らない
     e.lastUsedFrame    = _frame;
     e.inUseThisFrame   = true;
     e.freshlyAllocated = true;

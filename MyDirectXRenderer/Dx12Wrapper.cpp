@@ -121,57 +121,6 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	result = swapchain1.As(&_swapchain);
 	if (FAILED(result)) return false;
 
-	// 深度バッファーの作成
-	D3D12_RESOURCE_DESC depthResDesc = {};
-	depthResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D; // 2次元のテクスチャデータ
-	depthResDesc.Width = window_width;
-	depthResDesc.Height = window_height;
-	depthResDesc.DepthOrArraySize = 1; // テクスチャ配列でも、3Dテクスチャでもない
-	depthResDesc.Format = DXGI_FORMAT_D32_FLOAT; // 深度値書き込み用フォーマット
-	depthResDesc.SampleDesc.Count = 1; // サンプル数は1ピクセルあたり1つ
-	depthResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL; // デプスステンシルとして使用
-
-	// 深度値用ヒーププロパティ
-	D3D12_HEAP_PROPERTIES depthHeapProp = {};
-	depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT; // DEFAULT なのであとは UNKNOWN でよい
-	depthHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	depthHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-
-	// このクリアバリューが重要な意味を持つ
-	D3D12_CLEAR_VALUE depthClearValue = {};
-	depthClearValue.DepthStencil.Depth = 1.0f; // 深さ 1.0f (最大値）でクリア
-	depthClearValue.Format = DXGI_FORMAT_D32_FLOAT; // 32ビットfloat値としてクリア
-
-	result = _dev->CreateCommittedResource(
-		&depthHeapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&depthResDesc,
-		D3D12_RESOURCE_STATE_DEPTH_WRITE, // 深度値書き込みに使用
-		&depthClearValue,
-		IID_PPV_ARGS(&_depthBuffer)
-	);
-	if (FAILED(result)) return -1;
-
-	// 深度バッファービューの作成
-	// 深度のためのディスクリプタヒープ
-	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {}; // 深度に使う
-	dsvHeapDesc.NumDescriptors = 1; // 深度ビューは1つ
-	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV; // デプスステンシルビューとして使う
-	result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&_dsvDescHeap));
-	if (FAILED(result)) return -1;
-
-	// デプス深度ビュー作成
-	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-	dsvDesc.Format = DXGI_FORMAT_D32_FLOAT; // 深度値に32ビット使用
-	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D; // 2D テクスチャ
-	dsvDesc.Flags = D3D12_DSV_FLAG_NONE; // フラグは特になし
-
-	_dev->CreateDepthStencilView(
-		_depthBuffer.Get(),
-		&dsvDesc,
-		_dsvDescHeap->GetCPUDescriptorHandleForHeapStart()
-	);
-
 	// レンダーターゲットビュー
 	// ディスクリプタヒープ
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
@@ -207,7 +156,6 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	if (FAILED(result)) return false;
 
 	// マルチパスレンダリング用
-	CreateMultiPassResource();
 
 	// imgui用
 	_heapForImgui = CreateDescriptorHeapForImgui();
@@ -336,99 +284,6 @@ ComPtr<ID3D12Resource> Dx12Wrapper::CreateSolidColorTexture(
 		sizeof(data)	// 全サイズ
 	);
 }
-
-bool Dx12Wrapper::CreateMultiPassResource() {
-	// マルチパスレンダリング用
-	// 作成済みのヒープ情報を使ってもう一枚作る
-	auto heapDesc = _rtvDescHeap->GetDesc();
-
-	// 使っているバックバッファーの情報を利用する
-	auto& bbuff = _backBuffers[0];
-	auto resDesc = bbuff->GetDesc();
-
-	D3D12_HEAP_PROPERTIES heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-
-	float clsClr[4] = { 0.5, 0.5, 0.5, 1.0 };
-	D3D12_CLEAR_VALUE clearValue = CD3DX12_CLEAR_VALUE(DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, clsClr);
-
-	auto result = _dev->CreateCommittedResource(
-		&heapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,	// PIXEL_SHADER_RESOURCE
-		&clearValue,
-		IID_PPV_ARGS(_peraResource1.ReleaseAndGetAddressOf())
-	);
-	assert(SUCCEEDED(result));
-	result = _dev->CreateCommittedResource(
-		&heapProp,
-		D3D12_HEAP_FLAG_NONE,
-		&resDesc,
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		&clearValue,
-		IID_PPV_ARGS(_peraResource2.ReleaseAndGetAddressOf())
-	);
-	assert(SUCCEEDED(result));
-
-	// ビュー（rtv/srv）を作る
-	// RTV用ヒープ
-	heapDesc.NumDescriptors = 2;
-	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraRTVHeap.ReleaseAndGetAddressOf()));
-	assert(SUCCEEDED(result));
-
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-
-	// レンダーターゲットビューを作る
-	// 1枚目
-	auto handle = _peraRTVHeap->GetCPUDescriptorHandleForHeapStart();
-	_dev->CreateRenderTargetView(
-		_peraResource1.Get(),
-		&rtvDesc,
-		handle
-	);
-	// 2枚目
-	handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	_dev->CreateRenderTargetView(
-		_peraResource2.Get(),
-		&rtvDesc,
-		handle
-	);
-
-	// SRV 用ヒープを作る
-	heapDesc.NumDescriptors = 2;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.NodeMask = 0;
-
-	result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(_peraSRVHeap.ReleaseAndGetAddressOf()));
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = rtvDesc.Format;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-
-	
-	// シェーダーリソースビューを作る
-	// 1枚目
-	auto srvHandle = _peraSRVHeap->GetCPUDescriptorHandleForHeapStart();
-	_dev->CreateShaderResourceView(
-		_peraResource1.Get(),
-		&srvDesc,
-		srvHandle
-	);
-	// 2枚目
-	srvHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	_dev->CreateShaderResourceView(
-		_peraResource2.Get(),
-		&srvDesc,
-		srvHandle
-	);
-
-	return true;
-};
 
 ComPtr<ID3D12DescriptorHeap> Dx12Wrapper::CreateDescriptorHeapForImgui() {
 	ComPtr<ID3D12DescriptorHeap> ret;

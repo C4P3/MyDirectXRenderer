@@ -20,8 +20,11 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psoVertical;
 public:
 	PeraRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
-	void DrawHorizontal(); // 1枚目を読む
-	void DrawVertical();// 2枚目を読む
+	// 読むテクスチャは RenderGraph が解決して渡す（どの物理リソースかは
+	// パスの SampledRead 宣言で決まるので、ここで添字を知る必要はない）
+	void DrawHorizontal(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv);
+	void DrawVertical(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv);
 	bool Init();
-	void Draw(UINT srvIndex, ID3D12PipelineState* pso);
+	void Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
+		ID3D12PipelineState* pso);
 };

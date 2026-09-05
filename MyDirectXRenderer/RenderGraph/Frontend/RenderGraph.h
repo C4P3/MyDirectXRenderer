@@ -18,6 +18,10 @@ namespace rg {
 constexpr uint16_t kInvalidIndex = 0xffff;
 constexpr uint16_t kNoPass       = 0xffff;
 
+// 物理リソースの ID。IResourceAllocator が発番し、その実装だけが実体を知っている。
+// owned は Compile() がプールから、imported は Import() の引数から受け取る。
+constexpr uint32_t kInvalidPhysicalId = 0xffffffffu;
+
 // --- 1. ハンドル：整数 2 個。ポインタではない ------------------------------
 struct TextureHandle {
     uint16_t index   = kInvalidIndex;  // 仮想リソース ID
@@ -79,6 +83,9 @@ struct VirtualResource {
     // producer[v] = バージョン v を作ったパス。Create/Write のたびに builder が伸ばす。
     std::vector<uint16_t> producer;
 
+    // 物理リソース。imported は Import() 時点で確定、owned は Compile() が埋める。
+    uint32_t physicalId = kInvalidPhysicalId;
+
     // Compile() の導出結果
     uint32_t poolEntry = 0xffffffffu;  // TexturePool のエントリ（フレーム内のみ有効）
     uint8_t usageFlags = 0;
@@ -124,8 +131,9 @@ public:
 
     // グラフが所有するリソース
     TextureHandle Create(const char* name, const TextureDesc& desc);
-    // 外部所有（スワップチェーンなど）
-    TextureHandle Import(const char* name, const TextureDesc& desc,
+    // 外部所有（スワップチェーンなど）。実体はグラフの外にあるので physicalId を外から渡す。
+    // バックバッファのように毎フレーム実体が変わるものは、毎フレーム違う id で Import する。
+    TextureHandle Import(const char* name, const TextureDesc& desc, uint32_t physicalId,
                          State initial, State requiredFinal);
 
     // setup は毎フレーム走るが、GPU コマンドは一切積まない。

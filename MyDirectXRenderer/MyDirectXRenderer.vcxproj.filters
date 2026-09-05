@@ -87,17 +87,17 @@
     <ClCompile Include="PeraRenderer.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="RenderPasses.cpp">
-      <Filter>ソース ファイル</Filter>
+    <ClCompile Include="RenderGraph\Dx12CommandContext.cpp">
+      <Filter>RenderGraph</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderGraph\Dx12ResourceAllocator.cpp">
+      <Filter>RenderGraph</Filter>
     </ClCompile>
     <ClCompile Include="RenderGraph\Frontend\RenderGraph.cpp">
       <Filter>RenderGraph</Filter>
     </ClCompile>
     <ClCompile Include="RenderGraph\Frontend\TexturePool.cpp">
       <Filter>RenderGraph</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderGraph\LegacyRenderGraph.cpp">
-      <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -163,8 +163,11 @@
     <ClInclude Include="PeraRenderer.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="RenderPasses.h">
-      <Filter>ヘッダー ファイル</Filter>
+    <ClInclude Include="RenderGraph\Dx12CommandContext.h">
+      <Filter>RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraph\Dx12ResourceAllocator.h">
+      <Filter>RenderGraph</Filter>
     </ClInclude>
     <ClInclude Include="RenderGraph\Frontend\CommandContext.h">
       <Filter>RenderGraph</Filter>
@@ -174,9 +177,6 @@
     </ClInclude>
     <ClInclude Include="RenderGraph\Frontend\TexturePool.h">
       <Filter>RenderGraph</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderGraph\LegacyRenderGraph.h">
-      <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -44,11 +44,12 @@ TextureHandle RenderGraph::Create(const char* name, const TextureDesc& desc) {
 }
 
 TextureHandle RenderGraph::Import(const char* name, const TextureDesc& desc,
-                                  State initial, State requiredFinal) {
+                                  uint32_t physicalId, State initial, State requiredFinal) {
     VirtualResource r;
     r.name               = name;
     r.desc               = desc;
     r.imported           = true;
+    r.physicalId         = physicalId;
     r.stateAtFrameStart  = initial;
     r.requiredFinalState = requiredFinal;
     r.producer.push_back(kNoPass);
@@ -196,7 +197,9 @@ bool RenderGraph::Compile(TexturePool& pool) {
     bool ok = true;
     for (auto& r : _resources) {
         r.poolEntry = kInvalidPoolEntry;
+        // imported は Import() 時点で physicalId が入っているので触らない。
         if (r.imported || r.firstUse == kNoPass) continue;
+        r.physicalId = kInvalidPhysicalId;
 
         r.poolEntry = pool.Acquire(r.name, r.desc, r.usageFlags);
         if (r.poolEntry == kInvalidPoolEntry) {
@@ -205,6 +208,7 @@ bool RenderGraph::Compile(TexturePool& pool) {
             continue;
         }
         // 状態は物理リソースが持つ。新規確保なら Undefined。
+        r.physicalId        = pool.PhysicalId(r.poolEntry);
         r.stateAtFrameStart = pool.StateOf(r.poolEntry);
     }
     if (!ok) return false;
@@ -250,16 +254,20 @@ bool RenderGraph::Compile(TexturePool& pool) {
 
 void RenderGraph::Execute(CommandContext& ctx) {
     for (uint16_t i = 0; i < _order.size(); ++i) {
-        for (const auto& b : _barriersBeforePass[i])
-            ctx.Transition(_resources[b.resource].name, b.from, b.to);
+        for (const auto& b : _barriersBeforePass[i]) {
+            const auto& r = _resources[b.resource];
+            ctx.Transition(r.name, r.physicalId, b.from, b.to);
+        }
 
         auto& pass = _passes[_order[i]];
         ctx.BeginPass(pass.name);
         pass.execute(ctx);
         ctx.EndPass();
     }
-    for (const auto& b : _endBarriers)
-        ctx.Transition(_resources[b.resource].name, b.from, b.to);
+    for (const auto& b : _endBarriers) {
+        const auto& r = _resources[b.resource];
+        ctx.Transition(r.name, r.physicalId, b.from, b.to);
+    }
 }
 
 void RenderGraph::Clear() {

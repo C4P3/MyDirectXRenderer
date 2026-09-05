@@ -51,6 +51,10 @@ struct Pooled {
 };
 
 // --- 現状の 4 パスを宣言する（Application::BuildGraph 相当） ----------------
+// バックエンドが発番する physicalId の代役。実機ではスワップチェーンのバッファを
+// アロケータに登録して得た id が入る。
+constexpr uint32_t kFakeBackbufferId = 1000;
+
 static void BuildCurrentGraph(RenderGraph& g) {
     const TextureDesc colorDesc{ 1280, 720, Format::RGBA8_UNorm, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
     const TextureDesc depthDesc{ 1280, 720, Format::D32_Float, { 1, 1, 1, 1 }, 1.0f };
@@ -58,7 +62,7 @@ static void BuildCurrentGraph(RenderGraph& g) {
     TextureHandle pera1 = g.Create("pera1", colorDesc);
     TextureHandle pera2 = g.Create("pera2", colorDesc);
     TextureHandle depth = g.Create("depth", depthDesc);
-    TextureHandle bb    = g.Import("backbuffer", colorDesc, State::Present, State::Present);
+    TextureHandle bb    = g.Import("backbuffer", colorDesc, kFakeBackbufferId, State::Present, State::Present);
 
     struct ScenePass { TextureHandle color, depth; };
     g.AddPass<ScenePass>(
@@ -132,6 +136,14 @@ static void TestCurrentGraph() {
     // 2 フレーム目は確保が起きない（プールから引いている）
     CHECK(h.alloc.allocateCount == 3);  // pera1 / pera2 / depth。backbuffer は import
     CHECK(h.alloc.AliveCount() == 3);
+
+    // owned は Compile() がプールから physicalId を埋める。
+    // 2 フレーム目も同じ物理リソースを引くので id は変わらない。
+    CHECK(g.FindResource("pera1")->physicalId == 0);
+    CHECK(g.FindResource("pera2")->physicalId == 1);
+    CHECK(g.FindResource("depth")->physicalId == 2);
+    // imported は Import() で渡した id がそのまま残る
+    CHECK(g.FindResource("backbuffer")->physicalId == kFakeBackbufferId);
 
     // ★ 手書きの Dx12Wrapper が 1 フレームに発行しているバリア 6 個と一致する ★
     CheckList("frame 2 transitions", ctx2.Transitions(),
@@ -231,7 +243,7 @@ static void TestShadowMap() {
     TextureHandle pera1  = g.Create("pera1", colorDesc);
     TextureHandle depth  = g.Create("depth", depthDesc);
     TextureHandle shadow = g.Create("shadowDepth", shadowDesc);
-    TextureHandle bb     = g.Import("backbuffer", colorDesc, State::Present, State::Present);
+    TextureHandle bb     = g.Import("backbuffer", colorDesc, kFakeBackbufferId, State::Present, State::Present);
 
     struct Empty {};
     g.AddPass<Empty>(

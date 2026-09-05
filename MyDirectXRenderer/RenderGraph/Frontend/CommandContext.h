@@ -16,7 +16,10 @@ class CommandContext {
 public:
     virtual ~CommandContext() = default;
 
-    virtual void Transition(const std::string& resource, State from, State to) = 0;
+    // resource はデバッグ用の名前。実体を指すのは physicalId の方で、
+    // それを ID3D12Resource* に解決するのはバックエンド（IResourceAllocator の実装）の仕事。
+    virtual void Transition(const std::string& resource, uint32_t physicalId,
+                            State from, State to) = 0;
 
     // TODO: DX12 実装ではここでアタッチメント一覧（RTV ハンドルと LoadOp）を受け取り、
     //       OMSetRenderTargets / Clear*View を呼ぶことになる。
@@ -30,7 +33,7 @@ public:
 // Mac 用のダミーバックエンド。起きたことを 1 行ずつ積むだけ。
 class LoggingCommandContext : public CommandContext {
 public:
-    void Transition(const std::string& resource, State from, State to) override {
+    void Transition(const std::string& resource, uint32_t, State from, State to) override {
         log.push_back(resource + ": " + ToString(from) + " -> " + ToString(to));
     }
     void BeginPass(const std::string& name) override { log.push_back("[" + name + "]"); }

@@ -53,6 +53,10 @@ public:
     ID3D12Resource* GetCurrentBackBuffer() const {
         return _backBuffers[_swapchain->GetCurrentBackBufferIndex()].Get();
     }
+    // RenderGraph 用。実体は枚数分あるので、全部アロケータに登録して id を控えておく。
+    UINT BackBufferCount() const { return static_cast<UINT>(_backBuffers.size()); }
+    UINT CurrentBackBufferIndex() const { return _swapchain->GetCurrentBackBufferIndex(); }
+    ID3D12Resource* GetBackBuffer(UINT index) const { return _backBuffers[index].Get(); }
     D3D12_CPU_DESCRIPTOR_HANDLE GetDSV() const {
         return _dsvDescHeap->GetCPUDescriptorHandleForHeapStart();
     }

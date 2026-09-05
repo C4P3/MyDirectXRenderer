@@ -1,18 +1,22 @@
 #include "Application.h"
-#include "RenderGraph/LegacyRenderGraph.h"
+#include "RenderGraph/Dx12CommandContext.h"
+#include "RenderGraph/Dx12ResourceAllocator.h"
+#include "RenderGraph/Frontend/RenderGraph.h"
+#include "RenderGraph/Frontend/TexturePool.h"
 #include "Dx12Wrapper.h"
 #include "PMDRenderer.h"
 #include "PMDActor.h"
 #include "GregoryRenderer.h"
 #include "GregoryActor.h"
 #include "PeraRenderer.h"
-#include "RenderPasses.h"
 #include "Scene.h"
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
 #include "backends/imgui_impl_dx12.h"
 
+#include <assert.h>
 #include <tchar.h>
+#include <vector>
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;
@@ -139,20 +143,135 @@ bool ProcessMessages() {
 	return true; // メッセージを全部捌ききったので描画へ進む
 }
 
+// パスとリソースの宣言。ここには GPU コマンドを一切積まない。
+// ハンドルはフレーム限りの値（graph.Clear() で無効になる）なので、毎フレームここで作り直す。
+void Application::BuildGraph(rg::RenderGraph& graph, const ImportedResourceIds& ids)
+{
+	using rg::LoadOp;
+	using rg::State;
+	using rg::TextureHandle;
+
+	const rg::TextureDesc colorDesc{ window_width, window_height,
+		rg::Format::RGBA8_UNorm, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
+	const rg::TextureDesc depthDesc{ window_width, window_height,
+		rg::Format::D32_Float, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
+
+	// 段階 1 では実体はすべて Dx12Wrapper が持っているので 4 つとも Import。
+	// 段階 3 で pera / depth を graph.Create() に変えると TexturePool が実体を持つようになる。
+	// requiredFinalState を持つリソースがカリングの根になるので、backbuffer にだけ指定する。
+	TextureHandle pera1 = graph.Import("pera1", colorDesc, ids.pera1,
+		State::PixelShaderResource, State::Undefined);
+	TextureHandle pera2 = graph.Import("pera2", colorDesc, ids.pera2,
+		State::PixelShaderResource, State::Undefined);
+	TextureHandle depth = graph.Import("depth", depthDesc, ids.depth,
+		State::DepthWrite, State::Undefined);
+	TextureHandle bb = graph.Import("backbuffer", colorDesc, ids.backbuffer,
+		State::Present, State::Present);
+
+	// --- 1 枚目のオフスクリーンに 3D を描く ---
+	struct ScenePass { TextureHandle color, depth; };
+	graph.AddPass<ScenePass>("3D",
+		[&](rg::RenderGraph::Builder& b, ScenePass& d) {
+			d.color = pera1 = b.SetRenderAttachment(pera1, 0, LoadOp::Clear);
+			d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
+		},
+		[this](const ScenePass&, rg::CommandContext& ctx) {
+			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
+			auto rtvH = _dx12->PeraRTVHeap()->GetCPUDescriptorHandleForHeapStart();
+			auto dsvH = _dx12->GetDSV();
+			cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
+
+			float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+			cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+			cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+			cmdList->RSSetViewports(1, _dx12->GetViewport());
+			cmdList->RSSetScissorRects(1, _dx12->GetScissorRect());
+
+			_pmdRenderer->Draw(*_scene);
+			_gregoryRenderer->Draw(*_scene);
+		});
+
+	// --- 横ぼかし：1 枚目を読んで 2 枚目へ ---
+	struct BlurPass { TextureHandle src; };
+	graph.AddPass<BlurPass>("BlurH",
+		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
+			d.src = b.SampledRead(pera1);
+			pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
+		},
+		[this](const BlurPass&, rg::CommandContext& ctx) {
+			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
+			auto rtvH = _dx12->PeraRTVHeap()->GetCPUDescriptorHandleForHeapStart();
+			rtvH.ptr += _dx12->Device()->GetDescriptorHandleIncrementSize(
+				D3D12_DESCRIPTOR_HEAP_TYPE_RTV);  // 2 枚目
+			cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
+
+			float clearColor[] = { 0.5f, 0.5f, 0.5f, 1.0f };
+			cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+			cmdList->RSSetViewports(1, _dx12->GetViewport());
+			cmdList->RSSetScissorRects(1, _dx12->GetScissorRect());
+
+			_peraRenderer->DrawHorizontal();
+		});
+
+	// --- 縦ぼかし：2 枚目を読んでバックバッファへ ---
+	graph.AddPass<BlurPass>("BlurV",
+		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
+			d.src = b.SampledRead(pera2);
+			bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);  // bb@v0 -> bb@v1
+		},
+		[this](const BlurPass&, rg::CommandContext& ctx) {
+			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
+			auto rtvH = _dx12->GetCurrentBackBufferRTV();
+			cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
+
+			float clearColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+			cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+			cmdList->RSSetViewports(1, _dx12->GetViewport());
+			cmdList->RSSetScissorRects(1, _dx12->GetScissorRect());
+
+			_peraRenderer->DrawVertical();
+		});
+
+	// --- ImGui：バックバッファに上書きする。bb@v1 -> bb@v2 で BlurV の後ろに並ぶ ---
+	struct ImGuiPass { TextureHandle target; };
+	graph.AddPass<ImGuiPass>("ImGui",
+		[&](rg::RenderGraph::Builder& b, ImGuiPass& d) {
+			d.target = bb = b.SetRenderAttachment(bb, 0, LoadOp::Load);
+		},
+		[this](const ImGuiPass&, rg::CommandContext& ctx) {
+			auto* cmdList = static_cast<Dx12CommandContext&>(ctx).List();
+			auto rtvH = _dx12->GetCurrentBackBufferRTV();
+			cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
+
+			ID3D12DescriptorHeap* imguiHeaps[] = { _dx12->GetHeapForImgui().Get() };
+			cmdList->SetDescriptorHeaps(1, imguiHeaps);
+			ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
+		});
+}
+
 void Application::Run()
 {
-	RenderGraph renderGraph;
+	// 物理リソースの実体を知っているのはこのアロケータだけ。
+	// RenderGraph も TexturePool も physicalId しか持ち回らない。
+	Dx12ResourceAllocator allocator(_dx12->Device());
+	rg::TexturePool pool(allocator);
+	rg::RenderGraph graph;
 
-	// 初期状態＝「毎フレーム開始時の状態」を登録する
-	renderGraph.RegisterResource("BackBuffer", _dx12->GetCurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT);
-	renderGraph.RegisterResource("DepthBuffer", _dx12->GetDepthBuffer(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-	renderGraph.RegisterResource("PeraResource1", _dx12->GetPeraResource1(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	renderGraph.RegisterResource("PeraResource2", _dx12->GetPeraResource2(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	// スワップチェーンのバッファは実体が枚数分あるので、全部登録して id を控えておく。
+	// 毎フレーム RegisterExternal すると id が増え続けてしまう。
+	std::vector<uint32_t> backbufferIds;
+	for (UINT i = 0; i < _dx12->BackBufferCount(); ++i) {
+		backbufferIds.push_back(allocator.RegisterExternal(_dx12->GetBackBuffer(i)));
+	}
 
-	renderGraph.AddPass(std::make_unique<Pass1_Main3D>(_dx12.get(), _pmdRenderer.get(), _gregoryRenderer.get(), _scene.get()));
-	renderGraph.AddPass(std::make_unique<Pass2_HorizontalBlur>(_dx12.get(), _peraRenderer.get()));
-	renderGraph.AddPass(std::make_unique<Pass3_VerticalBlurAndUI>(_dx12.get(), _peraRenderer.get()));
-
+	// オフスクリーンと深度も、段階 3 までは Dx12Wrapper が持つ実体を預ける。
+	ImportedResourceIds ids;
+	ids.pera1 = allocator.RegisterExternal(_dx12->GetPeraResource1());
+	ids.pera2 = allocator.RegisterExternal(_dx12->GetPeraResource2());
+	ids.depth = allocator.RegisterExternal(_dx12->GetDepthBuffer());
 
 	// メインループ
 	while (ProcessMessages()) {
@@ -162,7 +281,7 @@ void Application::Run()
 		ImGui::NewFrame();
 		ImGui::SetWindowSize(ImVec2(400, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
 		ImGui::Begin("Rendering Test Menu");
-		_scene->DrawDebugGui();	// ここでカメラをいじる
+		_scene->DrawDebugGui();	// ここでカメラをいじれる
 		ImGui::End();
 		ImGui::Render();
 
@@ -171,14 +290,27 @@ void Application::Run()
 		if (_pmdActor) _pmdActor->Update();
 		_gregoryActor->Update();
 
-		//// --- 描画 ---
-		// バックバッファはフレームごとに実体が変わるので毎回差し替える
-		renderGraph.UpdateResource("BackBuffer", _dx12->GetCurrentBackBuffer());
+		// --- 描画 ---
+		// バックバッファはフレームごとに実体が変わるので、その枚の id で Import する
+		ids.backbuffer = backbufferIds[_dx12->CurrentBackBufferIndex()];
 
-		renderGraph.Compile();
-		renderGraph.Execute(_dx12->CommandList());
+		graph.Clear();
+		BuildGraph(graph, ids);
+
+		pool.BeginFrame();
+		// 段階 1 では確保が起きないので失敗しない。予算超過の扱いは段階 4 で。
+		const bool compiled = graph.Compile(pool);
+		assert(compiled && "RenderGraph::Compile failed");
+		(void)compiled;
+
+		Dx12CommandContext ctx(_dx12->CommandList(), allocator);
+		graph.Execute(ctx);
 
 		_dx12->EndDraw();
+
+		// EndDraw() が WaitForGPU() で完全同期しているので、その場で回収してよい。
+		pool.EndFrame(_dx12->FenceVal());
+		pool.Reclaim(_dx12->FenceVal());
 	}
 }
 void Application::Terminate()

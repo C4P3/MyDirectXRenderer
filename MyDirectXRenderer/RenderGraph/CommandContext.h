@@ -1,8 +1,8 @@
-﻿// CommandContext — RHI 依存の唯一の継ぎ目
+﻿// CommandContext — RHI の継ぎ目その 1（コマンドの発行）
 //
 // 論理層（RenderGraph）はこのインターフェースしか知らない。
-// Mac では LoggingCommandContext を使って Compile()/Execute() の結果を文字列で検証する。
-// Windows では ID3D12GraphicsCommandList をラップした実装に差し替える。
+// テストでは LoggingCommandContext を使って Compile()/Execute() の結果を文字列で検証し、
+// 実機では Dx12/Dx12CommandContext が ID3D12GraphicsCommandList に翻訳する。
 #pragma once
 
 #include <string>

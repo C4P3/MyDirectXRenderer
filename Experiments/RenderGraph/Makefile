@@ -1,5 +1,5 @@
 CXX ?= clang++
-RG_DIR   := ../../MyDirectXRenderer/RenderGraph/Frontend
+RG_DIR   := ../../MyDirectXRenderer/RenderGraph
 CXXFLAGS := -std=c++17 -Wall -Wextra -g -I$(RG_DIR)
 
 SRCS := main.cpp $(RG_DIR)/RenderGraph.cpp $(RG_DIR)/TexturePool.cpp

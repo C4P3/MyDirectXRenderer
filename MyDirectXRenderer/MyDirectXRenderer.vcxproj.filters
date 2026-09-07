@@ -25,6 +25,9 @@
     <Filter Include="RenderGraph">
       <UniqueIdentifier>{da110b1b-41be-4ca3-91b5-ffb92d67de64}</UniqueIdentifier>
     </Filter>
+    <Filter Include="RenderGraph\Dx12">
+      <UniqueIdentifier>{36018541-6a4f-49a6-a5cb-77f033ad1bab}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -87,16 +90,16 @@
     <ClCompile Include="PeraRenderer.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="RenderGraph\Dx12CommandContext.cpp">
+    <ClCompile Include="RenderGraph\Dx12\Dx12CommandContext.cpp">
+      <Filter>RenderGraph\Dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderGraph\Dx12\Dx12ResourceAllocator.cpp">
+      <Filter>RenderGraph\Dx12</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderGraph\RenderGraph.cpp">
       <Filter>RenderGraph</Filter>
     </ClCompile>
-    <ClCompile Include="RenderGraph\Dx12ResourceAllocator.cpp">
-      <Filter>RenderGraph</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderGraph\Frontend\RenderGraph.cpp">
-      <Filter>RenderGraph</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderGraph\Frontend\TexturePool.cpp">
+    <ClCompile Include="RenderGraph\TexturePool.cpp">
       <Filter>RenderGraph</Filter>
     </ClCompile>
   </ItemGroup>
@@ -163,19 +166,19 @@
     <ClInclude Include="PeraRenderer.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="RenderGraph\Dx12CommandContext.h">
+    <ClInclude Include="RenderGraph\Dx12\Dx12CommandContext.h">
+      <Filter>RenderGraph\Dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraph\Dx12\Dx12ResourceAllocator.h">
+      <Filter>RenderGraph\Dx12</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderGraph\CommandContext.h">
       <Filter>RenderGraph</Filter>
     </ClInclude>
-    <ClInclude Include="RenderGraph\Dx12ResourceAllocator.h">
+    <ClInclude Include="RenderGraph\RenderGraph.h">
       <Filter>RenderGraph</Filter>
     </ClInclude>
-    <ClInclude Include="RenderGraph\Frontend\CommandContext.h">
-      <Filter>RenderGraph</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderGraph\Frontend\RenderGraph.h">
-      <Filter>RenderGraph</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderGraph\Frontend\TexturePool.h">
+    <ClInclude Include="RenderGraph\TexturePool.h">
       <Filter>RenderGraph</Filter>
     </ClInclude>
   </ItemGroup>

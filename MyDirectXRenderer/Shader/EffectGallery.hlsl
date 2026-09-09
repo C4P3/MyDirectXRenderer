@@ -1,20 +1,20 @@
 #include "peraHeader.hlsli"
 #define SAMPLE_AT(ox, oy) tex.Sample(smp, input.uv + float2((ox) * dx, (oy) * dy))
 
-// ƒfƒBƒU—p
-// 4x4ƒoƒCƒGƒ‹s—ñ‚©‚çƒhƒbƒgƒpƒ^[ƒ“‚Ìè‡’li0.0 ` 1.0j‚ğæ“¾
+// ãƒ‡ã‚£ã‚¶ç”¨
+// 4x4ãƒã‚¤ã‚¨ãƒ«è¡Œåˆ—ã‹ã‚‰ãƒ‰ãƒƒãƒˆãƒ‘ã‚¿ãƒ¼ãƒ³ã®é–¾å€¤ï¼ˆ0.0 ï½ 1.0ï¼‰ã‚’å–å¾—
 float GetBayerMatrix(float2 pixelPosition)
 {
     static const float bayer4x4[16] =
     {
-        // ƒoƒCƒGƒ‹s—ñ‚Ì’li0-15j‚ğ³‹K‰»
+        // ãƒã‚¤ã‚¨ãƒ«è¡Œåˆ—ã®å€¤ï¼ˆ0-15ï¼‰ã‚’æ­£è¦åŒ–
          0.0 / 16.0,  8.0 / 16.0,  2.0 / 16.0, 10.0 / 16.0,
         12.0 / 16.0,  4.0 / 16.0, 14.0 / 16.0,  6.0 / 16.0,
          3.0 / 16.0, 11.0 / 16.0,  1.0 / 16.0,  9.0 / 16.0,
         15.0 / 16.0,  7.0 / 16.0, 13.0 / 16.0,  5.0 / 16.0
     };
 
-    // ƒsƒNƒZƒ‹À•W‚ğ 0 ` 3@‚ÌƒCƒ“ƒfƒbƒNƒX‚É•ÏŠ· 
+    // ãƒ”ã‚¯ã‚»ãƒ«åº§æ¨™ã‚’ 0 ï½ 3ã€€ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã«å¤‰æ› 
     int x = (int) fmod(abs(pixelPosition.x), 4.0f);
     int y = (int) fmod(abs(pixelPosition.y), 4.0f);
 
@@ -24,109 +24,109 @@ float GetBayerMatrix(float2 pixelPosition)
 float4 ps(Output input) : SV_Target
 {
     float4 col = tex.Sample(smp, input.uv);
-    // ‚»‚Ì‚Ü‚Ü
+    // ãã®ã¾ã¾
     // return col;
     
-    // ƒ‚ƒmƒNƒ
+    // ãƒ¢ãƒã‚¯ãƒ­
     // float Y = dot(col.rgb, float3(0.299, 0.587, 0.144));
     // return float4(Y, Y, Y, 1);
     
-    // F”½“]
+    // è‰²åè»¢
     // col.rgb = float3(1.0f, 1.0f, 1.0f) - col.rgb;
     // return col;
     // return float4(1.0f - col.rgb, col.a);
     
 
-    // F‚Ìæ~’²‚ğ—‚Æ‚·
+    // è‰²ã®è«§èª¿ã‚’è½ã¨ã™
     // return float4(col.rgb - fmod(col.rgb, 0.25f), col.a);
     
-    // ƒŒƒgƒŠ´iƒfƒBƒUƒŠƒ“ƒO‚ğ‚µ‚È‚ª‚çF‚Ìæ~’²‚ğ—‚Æ‚·j
-    // 1. ƒXƒNƒŠ[ƒ“ã‚ÌƒsƒNƒZƒ‹ˆÊ’u‚©‚çƒfƒBƒUƒpƒ^[ƒ“‚ğæ“¾i0.0 ` 1.0j
+    // ãƒ¬ãƒˆãƒ­æ„Ÿï¼ˆãƒ‡ã‚£ã‚¶ãƒªãƒ³ã‚°ã‚’ã—ãªãŒã‚‰è‰²ã®è«§èª¿ã‚’è½ã¨ã™ï¼‰
+    // 1. ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ä¸Šã®ãƒ”ã‚¯ã‚»ãƒ«ä½ç½®ã‹ã‚‰ãƒ‡ã‚£ã‚¶ãƒ‘ã‚¿ãƒ¼ãƒ³ã‚’å–å¾—ï¼ˆ0.0 ï½ 1.0ï¼‰
     // float ditherPattern = GetBayerMatrix(input.svpos.xy);
-    // 2. Œ¸F•2x‚É‡‚í‚¹‚ÄƒmƒCƒY(+-x)‚ğƒIƒtƒZƒbƒg‚µ‚Ä‰ÂZ
+    // 2. æ¸›è‰²å¹…2xã«åˆã‚ã›ã¦ãƒã‚¤ã‚º(+-x)ã‚’ã‚ªãƒ•ã‚»ãƒƒãƒˆã—ã¦å¯ç®—
     // float3 colorWithDither = col.rgb + (ditherPattern - 0.5f) * 0.25f;
-    // 3. •‰‚Ì’l‚É‚È‚ç‚È‚¢‚æ‚¤‚ÉˆÀ‘S‚Ì‚½‚ßƒNƒ‰ƒ“ƒv
+    // 3. è² ã®å€¤ã«ãªã‚‰ãªã„ã‚ˆã†ã«å®‰å…¨ã®ãŸã‚ã‚¯ãƒ©ãƒ³ãƒ—
     // colorWithDither = saturate(colorWithDither);
-    // 4. ƒ|ƒXƒ^ƒ‰ƒCƒY
+    // 4. ãƒã‚¹ã‚¿ãƒ©ã‚¤ã‚º
     // float3 finalColor = colorWithDither - fmod(colorWithDither, 0.25f);
     // return float4(finalColor, col.a);
     
     
-    // ‚Ú‚©‚µˆ—
+    // ã¼ã‹ã—å‡¦ç†
     float w, h, levels;
     tex.GetDimensions(0, w, h, levels);
     float dx = 1.0f / w;
     float dy = 1.0f / h;
     float4 ret = float4(0, 0, 0, 0);
     
-    // ‰æ‘f•½‹Ï‰»‚É‚æ‚é‚Ú‚©‚µˆ—
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, -2 * dy)); // ¶ã
-    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy)); // ã
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, -2 * dy)); // ‰Eã 
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, 0)); // ¶
-    // ret += tex.Sample(smp, input.uv + float2(      0, 0)); // ©•ª
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 0)); // ‰E
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, 2 * dy)); // ¶‰º
-    // ret += tex.Sample(smp, input.uv + float2(      0, 2 * dy)); // ‰º
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 2 * dy)); // ‰E‰º 
+    // ç”»ç´ å¹³å‡åŒ–ã«ã‚ˆã‚‹ã¼ã‹ã—å‡¦ç†
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, -2 * dy)); // å·¦ä¸Š
+    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy)); // ä¸Š
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, -2 * dy)); // å³ä¸Š 
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, 0)); // å·¦
+    // ret += tex.Sample(smp, input.uv + float2(      0, 0)); // è‡ªåˆ†
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 0)); // å³
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, 2 * dy)); // å·¦ä¸‹
+    // ret += tex.Sample(smp, input.uv + float2(      0, 2 * dy)); // ä¸‹
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 2 * dy)); // å³ä¸‹ 
     // return ret / 9.0f;
     
-    // ƒGƒ“ƒ{ƒX‰ÁH
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, -2 * dy)) * 2;    // ¶ã * 2
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, 0));              // ¶
-    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy));        // ã
-    // ret += tex.Sample(smp, input.uv + float2(      0, 0));              // ©•ª
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 0)) * -1;         // ‰E * -1
-    // ret += tex.Sample(smp, input.uv + float2(      0, 2 * dy)) * -1;    // ‰º * -1
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 2 * dy)) * -2;    // ‰E‰º * -2
+    // ã‚¨ãƒ³ãƒœã‚¹åŠ å·¥
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, -2 * dy)) * 2;    // å·¦ä¸Š * 2
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx, 0));              // å·¦
+    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy));        // ä¸Š
+    // ret += tex.Sample(smp, input.uv + float2(      0, 0));              // è‡ªåˆ†
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 0)) * -1;         // å³ * -1
+    // ret += tex.Sample(smp, input.uv + float2(      0, 2 * dy)) * -1;    // ä¸‹ * -1
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx, 2 * dy)) * -2;    // å³ä¸‹ * -2
     // return ret;
     
-    // ƒVƒƒ[ƒvƒlƒX
-    // ret += tex.Sample(smp, input.uv + float2(0,0)) * 5;// ©•ª * 5
-    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy)) * -1;// ã * -1
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx,       0)) * -1;// ¶ * -1
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx,       0)) * -1;// ‰E * -1
-    // ret += tex.Sample(smp, input.uv + float2(      0,  2 * dy)) * -1;// ‰º * -1
+    // ã‚·ãƒ£ãƒ¼ãƒ—ãƒã‚¹
+    // ret += tex.Sample(smp, input.uv + float2(0,0)) * 5;// è‡ªåˆ† * 5
+    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy)) * -1;// ä¸Š * -1
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx,       0)) * -1;// å·¦ * -1
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx,       0)) * -1;// å³ * -1
+    // ret += tex.Sample(smp, input.uv + float2(      0,  2 * dy)) * -1;// ä¸‹ * -1
     // return ret;
     
-    // —ÖŠsü’Šo
-    // ret += tex.Sample(smp, input.uv + float2(0,0)) * 4;// ©•ª * 4
-    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy)) * -1;// ã * -1
-    // ret += tex.Sample(smp, input.uv + float2(-2 * dx,       0)) * -1;// ¶ * -1
-    // ret += tex.Sample(smp, input.uv + float2( 2 * dx,       0)) * -1;// ‰E * -1
-    // ret += tex.Sample(smp, input.uv + float2(      0,  2 * dy)) * -1;// ‰º * -1
-    // ”½“]
+    // è¼ªéƒ­ç·šæŠ½å‡º
+    // ret += tex.Sample(smp, input.uv + float2(0,0)) * 4;// è‡ªåˆ† * 4
+    // ret += tex.Sample(smp, input.uv + float2(      0, -2 * dy)) * -1;// ä¸Š * -1
+    // ret += tex.Sample(smp, input.uv + float2(-2 * dx,       0)) * -1;// å·¦ * -1
+    // ret += tex.Sample(smp, input.uv + float2( 2 * dx,       0)) * -1;// å³ * -1
+    // ret += tex.Sample(smp, input.uv + float2(      0,  2 * dy)) * -1;// ä¸‹ * -1
+    // åè»¢
     // float Y = dot(ret.rgb, float3(0.299, 0.587, 0.114));
     // Y = pow(1.0f - Y, 10.0f);
     // Y = step(0.2, Y);
     // return float4(Y, Y, Y, col.a);
     
-    // ƒKƒEƒVƒAƒ“‚Ú‚©‚µ
-    // Åã’i
+    // ã‚¬ã‚¦ã‚·ã‚¢ãƒ³ã¼ã‹ã—
+    // æœ€ä¸Šæ®µ
     //ret += SAMPLE_AT(-2,  2) *  1 / 256;
     //ret += SAMPLE_AT(-1,  2) *  4 / 256;
     //ret += SAMPLE_AT( 0,  2) *  6 / 256;
     //ret += SAMPLE_AT( 1,  2) *  4 / 256;
     //ret += SAMPLE_AT( 2,  2) *  1 / 256;
-    // Å‰º’i
+    // æœ€ä¸‹æ®µ
     //ret += SAMPLE_AT(-2, -2) *  1 / 256;
     //ret += SAMPLE_AT(-1, -2) *  4 / 256;
     //ret += SAMPLE_AT( 0, -2) *  6 / 256;
     //ret += SAMPLE_AT( 1, -2) *  4 / 256;
     //ret += SAMPLE_AT( 2, -2) *  1 / 256;
-    // ‚P‚Âã’i
+    // ï¼‘ã¤ä¸Šæ®µ
     //ret += SAMPLE_AT(-2,  1) *  4 / 256;
     //ret += SAMPLE_AT(-1,  1) * 16 / 256;
     //ret += SAMPLE_AT( 0,  1) * 24 / 256;
     //ret += SAMPLE_AT( 1,  1) * 16 / 256;
     //ret += SAMPLE_AT( 2,  1) *  4 / 256;
-    // ‚P‚Â‰º’i
+    // ï¼‘ã¤ä¸‹æ®µ
     //ret += SAMPLE_AT(-2, -1) *  4 / 256;
     //ret += SAMPLE_AT(-1, -1) * 16 / 256;
     //ret += SAMPLE_AT( 0, -1) * 24 / 256;
     //ret += SAMPLE_AT( 1, -1) * 16 / 256;
     //ret += SAMPLE_AT( 2, -1) *  4 / 256;
-    // ’†’i
+    // ä¸­æ®µ
     //ret += SAMPLE_AT(-2,  0) *  6 / 256;
     //ret += SAMPLE_AT(-1,  0) * 24 / 256;
     //ret += SAMPLE_AT( 0,  0) * 36 / 256;
@@ -134,8 +134,8 @@ float4 ps(Output input) : SV_Target
     //ret += SAMPLE_AT( 2,  0) *  6 / 256;
     //return ret;
     
-    // ƒKƒEƒVƒAƒ“‚Ú‚©‚µ
-    ret += bkweights[0].x * col; // ’†S‚Í 1 ‰ñ‚¾‚¯
+    // ã‚¬ã‚¦ã‚·ã‚¢ãƒ³ã¼ã‹ã—
+    ret += bkweights[0].x * col; // ä¸­å¿ƒã¯ 1 å›ã ã‘
     for (int i = 1; i < 8; ++i)
     {
         float w = bkweights[i >> 2][i % 4];

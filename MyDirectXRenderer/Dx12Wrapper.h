@@ -1,15 +1,15 @@
-#pragma once
+ï»¿#pragma once
 
 #include <Windows.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <vector>
-#include <wrl/client.h> // ComPtr—p
+#include <wrl/client.h> // ComPtrç”¨
 
 class Dx12Wrapper
 {
 private:
-    // ƒwƒbƒ_[“à‚È‚Ì‚Å using namespace ‚ğ”ğ‚¯AMicrosoft::WRL::ComPtr ‚Æƒtƒ‹‚Å‘‚­
+    // ãƒ˜ãƒƒãƒ€ãƒ¼å†…ãªã®ã§ using namespace ã‚’é¿ã‘ã€Microsoft::WRL::ComPtr ã¨ãƒ•ãƒ«ã§æ›¸ã
     Microsoft::WRL::ComPtr<ID3D12Device> _dev;
     Microsoft::WRL::ComPtr<IDXGIFactory6> _dxgiFactory;
     Microsoft::WRL::ComPtr<IDXGISwapChain4> _swapchain;
@@ -21,7 +21,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _heapForImgui;
 
 
-    // ƒIƒtƒXƒNƒŠ[ƒ“‚Æ[“x‚Í RenderGraphiTexturePoolj‚ª‚ÂB‚±‚±‚ÍƒoƒbƒNƒoƒbƒtƒ@‚¾‚¯B
+    // ã‚ªãƒ•ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã¨æ·±åº¦ã¯ RenderGraphï¼ˆTexturePoolï¼‰ãŒæŒã¤ã€‚ã“ã“ã¯ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã ã‘ã€‚
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> _backBuffers;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> _fence;
@@ -39,7 +39,7 @@ public:
     ID3D12Resource* GetCurrentBackBuffer() const {
         return _backBuffers[_swapchain->GetCurrentBackBufferIndex()].Get();
     }
-    // RenderGraph —pBÀ‘Ì‚Í–‡”•ª‚ ‚é‚Ì‚ÅA‘S•”ƒAƒƒP[ƒ^‚É“o˜^‚µ‚Ä id ‚ğT‚¦‚Ä‚¨‚­B
+    // RenderGraph ç”¨ã€‚å®Ÿä½“ã¯æšæ•°åˆ†ã‚ã‚‹ã®ã§ã€å…¨éƒ¨ã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã«ç™»éŒ²ã—ã¦ id ã‚’æ§ãˆã¦ãŠãã€‚
     UINT BackBufferCount() const { return static_cast<UINT>(_backBuffers.size()); }
     UINT CurrentBackBufferIndex() const { return _swapchain->GetCurrentBackBufferIndex(); }
     ID3D12Resource* GetBackBuffer(UINT index) const { return _backBuffers[index].Get(); }
@@ -48,7 +48,7 @@ public:
         rtvH.ptr += index * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         return rtvH;
     }
-    // ŠÖ”‚ÌéŒ¾‚Ì‚İ‚ğ‹Lq
+    // é–¢æ•°ã®å®£è¨€ã®ã¿ã‚’è¨˜è¿°
     bool Init(HWND hwnd, int window_width, int window_height);
     void EndDraw();
     void WaitForGPU();

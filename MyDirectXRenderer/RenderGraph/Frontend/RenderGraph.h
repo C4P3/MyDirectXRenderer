@@ -2,9 +2,6 @@
 //
 // D3D12 に一切依存しない。唯一の継ぎ目は CommandContext（CommandContext.h）で、
 // これを差し替えることで Mac 上のダミーバックエンドでも DX12 でも動く想定。
-//
-// このファイルは Mac での実験用なので UTF-8。
-// 本体プロジェクト（Shift-JIS）に取り込むときは変換が必要。
 #pragma once
 
 #include <cstdint>

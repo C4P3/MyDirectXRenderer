@@ -2,36 +2,36 @@
 
 float4 BasicPS(Output input) : SV_TARGET
 {
-    // •½sŒõüƒxƒNƒgƒ‹
+    // å¹³è¡Œå…‰ç·šãƒ™ã‚¯ãƒˆãƒ«
     float3 light = normalize(float3(1, -1, 1));
     
-    // ƒ‰ƒCƒg‚ÌƒJƒ‰[
+    // ãƒ©ã‚¤ãƒˆã®ã‚«ãƒ©ãƒ¼
     float3 lightColor = float3(1, 1, 1);
     
-    // ƒfƒBƒtƒ…[ƒYŒvZ
+    // ãƒ‡ã‚£ãƒ•ãƒ¥ãƒ¼ã‚ºè¨ˆç®—
     float diffuseB = saturate(dot(-light, (float3) input.normal));
     float4 toonDif = toon.Sample(smpToon, float2(0, 1.0 - diffuseB));
     
-    // Œõ‚Ì”½ËƒxƒNƒgƒ‹
+    // å…‰ã®åå°„ãƒ™ã‚¯ãƒˆãƒ«
     float3 refLight = normalize(reflect(light, input.normal.xyz));
     float specularB = pow(saturate(dot(refLight, -input.ray)), specular.a);
     
-    // ƒXƒtƒBƒAƒ}ƒbƒv—p
+    // ã‚¹ãƒ•ã‚£ã‚¢ãƒãƒƒãƒ—ç”¨
     float2 sphereMapUV = input.vnormal.xy;
     sphereMapUV = (sphereMapUV + float2(1, -1)) * float2(0.5, -0.5);
     
-    // ƒeƒNƒXƒ`ƒƒƒJƒ‰[
+    // ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚«ãƒ©ãƒ¼
     float4 texColor = tex.Sample(smp, input.uv);
     
     return max(
-        toonDif     // ‹P“xiƒgƒD[ƒ“j
-        // diffuseB  // ‹P“x
-        * diffuse   // ƒfƒBƒtƒ…[ƒYƒJƒ‰[
-        * texColor  // ƒeƒNƒXƒ`ƒƒƒJƒ‰[
-        * sph.Sample(smp, sphereMapUV)  // ƒXƒtƒBƒAƒ}ƒbƒv
-        + spa.Sample(smp, sphereMapUV)  // ƒXƒtƒBƒAƒ}ƒbƒv
-        + float4(specularB * specular.rgb, 1)   // ƒXƒyƒLƒ…ƒ‰
+        toonDif     // è¼åº¦ï¼ˆãƒˆã‚¥ãƒ¼ãƒ³ï¼‰
+        // diffuseB  // è¼åº¦
+        * diffuse   // ãƒ‡ã‚£ãƒ•ãƒ¥ãƒ¼ã‚ºã‚«ãƒ©ãƒ¼
+        * texColor  // ãƒ†ã‚¯ã‚¹ãƒãƒ£ã‚«ãƒ©ãƒ¼
+        * sph.Sample(smp, sphereMapUV)  // ã‚¹ãƒ•ã‚£ã‚¢ãƒãƒƒãƒ—
+        + spa.Sample(smp, sphereMapUV)  // ã‚¹ãƒ•ã‚£ã‚¢ãƒãƒƒãƒ—
+        + float4(specularB * specular.rgb, 1)   // ã‚¹ãƒšã‚­ãƒ¥ãƒ©
     ,
-        float4((float3)texColor * ambient, 1)   // ƒAƒ“ƒrƒGƒ“ƒg
+        float4((float3)texColor * ambient, 1)   // ã‚¢ãƒ³ãƒ“ã‚¨ãƒ³ãƒˆ
     );
 }

@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <Windows.h>
 #include <cstdint>
 #include <memory>
@@ -15,21 +15,21 @@ class Dx12ResourceAllocator;
 class Application
 {
 private:
-    // ƒVƒ“ƒOƒ‹ƒgƒ“ƒpƒ^[ƒ“‚Ì‚½‚ßAƒRƒ“ƒXƒgƒ‰ƒNƒ^‚ÆƒfƒXƒgƒ‰ƒNƒ^‚ğprivate‚É‰B•Á
+    // ã‚·ãƒ³ã‚°ãƒ«ãƒˆãƒ³ãƒ‘ã‚¿ãƒ¼ãƒ³ã®ãŸã‚ã€ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã¨ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã‚’privateã«éš è”½
     Application() = default;
     ~Application();
 
-    // ˆÓ}‚µ‚È‚¢ƒRƒs[‚âƒ€[ƒu‚ğ–h‚®
+    // æ„å›³ã—ãªã„ã‚³ãƒ”ãƒ¼ã‚„ãƒ ãƒ¼ãƒ–ã‚’é˜²ã
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
     Application(Application&&) = delete;
     Application& operator=(Application&&) = delete;
 
-    // ƒEƒBƒ“ƒhƒEŠÖ˜A
+    // ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦é–¢é€£
     HWND _hwnd = nullptr;
     WNDCLASSEX _windowClass = {};
 
-    // Šeå—vƒ‚ƒWƒ…[ƒ‹‚ÌŠÇ—i©“®‚Åƒƒ‚ƒŠ‰ğ•ú‚³‚ê‚é unique_ptr ‚ğg—pj
+    // å„ä¸»è¦ãƒ¢ã‚¸ãƒ¥ãƒ¼ãƒ«ã®ç®¡ç†ï¼ˆè‡ªå‹•ã§ãƒ¡ãƒ¢ãƒªè§£æ”¾ã•ã‚Œã‚‹ unique_ptr ã‚’ä½¿ç”¨ï¼‰
     std::unique_ptr<Dx12Wrapper> _dx12;
     std::unique_ptr<PMDRenderer> _pmdRenderer;
     std::unique_ptr<PMDActor> _pmdActor;
@@ -39,19 +39,19 @@ private:
     std::unique_ptr<Scene> _scene;
     std::unique_ptr<Dx12ResourceAllocator> _allocator;
 
-    // –ˆƒtƒŒ[ƒ€ŒÄ‚ÔBƒpƒX‚ÆƒŠƒ\[ƒX‚ÌéŒ¾‚¾‚¯‚ğs‚¢AGPU ƒRƒ}ƒ“ƒh‚ÍÏ‚Ü‚È‚¢B
-    // ƒOƒ‰ƒt‚ÌŠO‚ÉÀ‘Ì‚ª‚ ‚é‚Ì‚ÍƒoƒbƒNƒoƒbƒtƒ@‚¾‚¯‚È‚Ì‚ÅA‚»‚Ì physicalId ‚ğ“n‚·B
+    // æ¯ãƒ•ãƒ¬ãƒ¼ãƒ å‘¼ã¶ã€‚ãƒ‘ã‚¹ã¨ãƒªã‚½ãƒ¼ã‚¹ã®å®£è¨€ã ã‘ã‚’è¡Œã„ã€GPU ã‚³ãƒãƒ³ãƒ‰ã¯ç©ã¾ãªã„ã€‚
+    // ã‚°ãƒ©ãƒ•ã®å¤–ã«å®Ÿä½“ãŒã‚ã‚‹ã®ã¯ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã ã‘ãªã®ã§ã€ãã® physicalId ã‚’æ¸¡ã™ã€‚
     void BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId);
 public:
-    // —Bˆê‚ÌƒCƒ“ƒXƒ^ƒ“ƒX‚ğæ“¾‚·‚éiƒVƒ“ƒOƒ‹ƒgƒ“‚Ö‚ÌƒAƒNƒZƒXƒ|ƒCƒ“ƒgj
+    // å”¯ä¸€ã®ã‚¤ãƒ³ã‚¹ã‚¿ãƒ³ã‚¹ã‚’å–å¾—ã™ã‚‹ï¼ˆã‚·ãƒ³ã‚°ãƒ«ãƒˆãƒ³ã¸ã®ã‚¢ã‚¯ã‚»ã‚¹ãƒã‚¤ãƒ³ãƒˆï¼‰
     static Application& Instance();
 
-    // ƒAƒvƒŠƒP[ƒVƒ‡ƒ“‚Ìƒ‰ƒCƒtƒTƒCƒNƒ‹
+    // ã‚¢ãƒ—ãƒªã‚±ãƒ¼ã‚·ãƒ§ãƒ³ã®ãƒ©ã‚¤ãƒ•ã‚µã‚¤ã‚¯ãƒ«
     bool Init();
     void Run();
     void Terminate();
 
-    // ƒQƒbƒ^[
+    // ã‚²ãƒƒã‚¿ãƒ¼
     HWND GetWindowHandle() const { return _hwnd; };
     //SIZE GetWindowSize();
 };

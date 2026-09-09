@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -141,6 +141,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Application.cpp" />
+    <ClCompile Include="Debug.cpp" />
     <ClCompile Include="Dx12Wrapper.cpp" />
     <ClCompile Include="External\imgui\backends\imgui_impl_dx12.cpp" />
     <ClCompile Include="External\imgui\backends\imgui_impl_win32.cpp" />
@@ -182,6 +183,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h" />
+    <ClInclude Include="Debug.h" />
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Dx12Wrapper.h" />
     <ClInclude Include="GregoryActor.h" />

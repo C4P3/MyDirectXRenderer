@@ -1,10 +1,10 @@
-#define MATERIAL_MULTIPLIER 5
+ï»¿#define MATERIAL_MULTIPLIER 5
 
 #include <Windows.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <vector>
-#include <wrl/client.h> // ComPtr—p
+#include <wrl/client.h> // ComPtrç”¨
 #include <string>
 #include <DirectXMath.h>
 #include <DirectXTex.h>
@@ -14,6 +14,7 @@
 #include "d3dx12.h"
 #include "Application.h"
 #include "Dx12Wrapper.h"
+#include "Debug.h"
 #include "GregoryActor.h"
 #include "PMDActor.h"
 #include "core/lattice.h"
@@ -32,7 +33,7 @@ using namespace DirectX;
 using Microsoft::WRL::ComPtr;
 
 
-// Load() ‘Š“–B’iŠK B ‚Å‚ÍŠiq‚ğ•ÒW‚µ‚È‚¢‚Ì‚Å‰‰ñ1‰ñ‚¾‚¯‚Å—Ç‚¢
+// Load() ç›¸å½“ã€‚æ®µéš B ã§ã¯æ ¼å­ã‚’ç·¨é›†ã—ãªã„ã®ã§åˆå›1å›ã ã‘ã§è‰¯ã„
 bool GregoryActor::BuildMesh(int segments)
 {
 	_lattice = greg::makeCube();
@@ -58,10 +59,10 @@ bool GregoryActor::BuildMesh(int segments)
 		for (int j = 0; j < segments; ++j) {
 			for (int i = 0; i < segments; ++i) {
 				uint32_t a = base + j * (segments + 1) + i;
-				uint32_t b = a + 1;                  // +ƒ¢u
-				uint32_t c = a + (segments + 1);     // +ƒ¢v
+				uint32_t b = a + 1;                  // +Î”u
+				uint32_t c = a + (segments + 1);     // +Î”v
 				uint32_t d = c + 1;
-				// ‰ğÍ–@ü du~dv ‚Ì‘¤‚©‚çŒ©‚Ä CCW ‚É‚È‚é‡˜
+				// è§£ææ³•ç·š duÃ—dv ã®å´ã‹ã‚‰è¦‹ã¦ CCW ã«ãªã‚‹é †åº
 				idx.insert(idx.end(), { a, b, c, b, d, c });
 			}
 		}
@@ -70,12 +71,12 @@ bool GregoryActor::BuildMesh(int segments)
 	_vertBuff = _dx12.CreateBuffer(verts.size() * sizeof(GregoryVertex), verts.data());
 	_idxBuff = _dx12.CreateBuffer(idx.size() * sizeof(uint32_t), idx.data());
 
-	// ’¸“_ƒoƒbƒtƒ@[ƒrƒ…[
-	_vbView.BufferLocation = _vertBuff->GetGPUVirtualAddress(); // ƒoƒbƒtƒ@[‚Ì‰¼‘zƒAƒhƒŒƒX
-	_vbView.SizeInBytes = verts.size() * sizeof(GregoryVertex);	// ‘SƒoƒCƒg”
-	_vbView.StrideInBytes = sizeof(GregoryVertex);	// ˆê’¸“_•Ó‚è‚ÌƒoƒCƒg”
+	// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ãƒ¼ãƒ“ãƒ¥ãƒ¼
+	_vbView.BufferLocation = _vertBuff->GetGPUVirtualAddress(); // ãƒãƒƒãƒ•ã‚¡ãƒ¼ã®ä»®æƒ³ã‚¢ãƒ‰ãƒ¬ã‚¹
+	_vbView.SizeInBytes = verts.size() * sizeof(GregoryVertex);	// å…¨ãƒã‚¤ãƒˆæ•°
+	_vbView.StrideInBytes = sizeof(GregoryVertex);	// ä¸€é ‚ç‚¹è¾ºã‚Šã®ãƒã‚¤ãƒˆæ•°
 
-	// ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@[ƒrƒ…[‚ğì¬
+	// ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ãƒ¼ãƒ“ãƒ¥ãƒ¼ã‚’ä½œæˆ
 	_ibView.BufferLocation = _idxBuff->GetGPUVirtualAddress();
 	_ibView.Format = DXGI_FORMAT_R32_UINT;
 	_ibView.SizeInBytes = static_cast<UINT>(idx.size() * sizeof(uint32_t));
@@ -84,10 +85,10 @@ bool GregoryActor::BuildMesh(int segments)
 
 	XMMATRIX matrix = XMMatrixIdentity();
 
-	// 1. ’è”ƒoƒbƒtƒ@‚Ìì¬‚µ‚Ä’†g‚ğƒ}ƒbƒv‚Å‘‚«Š·‚¦‚éiƒoƒbƒtƒ@ƒTƒCƒY: 256ƒoƒCƒgAƒRƒs[Œ³ƒTƒCƒY: sizeof(matrix) = 64ƒoƒCƒgj
-	size_t cbSize = (sizeof(Transform) + 255) & ~255; // 256ƒoƒCƒgƒAƒ‰ƒCƒƒ“ƒg
+	// 1. å®šæ•°ãƒãƒƒãƒ•ã‚¡ã®ä½œæˆã—ã¦ä¸­èº«ã‚’ãƒãƒƒãƒ—ã§æ›¸ãæ›ãˆã‚‹ï¼ˆãƒãƒƒãƒ•ã‚¡ã‚µã‚¤ã‚º: 256ãƒã‚¤ãƒˆã€ã‚³ãƒ”ãƒ¼å…ƒã‚µã‚¤ã‚º: sizeof(matrix) = 64ãƒã‚¤ãƒˆï¼‰
+	size_t cbSize = (sizeof(Transform) + 255) & ~255; // 256ãƒã‚¤ãƒˆã‚¢ãƒ©ã‚¤ãƒ¡ãƒ³ãƒˆ
 
-	// ’è”ƒoƒbƒtƒ@
+	// å®šæ•°ãƒãƒƒãƒ•ã‚¡
 	auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 	auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(cbSize);
 
@@ -99,13 +100,15 @@ bool GregoryActor::BuildMesh(int segments)
 		nullptr,
 		IID_PPV_ARGS(&_transformBuff)
 	);
-	if (FAILED(hr)) return false;
+	if (FAILED(hr))
+		return DebugFail("GregoryActor::BuildMesh", "ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ç”¨å®šæ•°ãƒãƒƒãƒ•ã‚¡ã®ç”Ÿæˆ", hr);
 
-	// CPU‚©‚ç“Ç‚İ‚Ü‚È‚¢‚±‚Æ‚ğ–¾Šm‚É‚·‚é‚½‚ß Range(0, 0) ‚ğw’è
+	// CPUã‹ã‚‰èª­ã¿è¾¼ã¾ãªã„ã“ã¨ã‚’æ˜ç¢ºã«ã™ã‚‹ãŸã‚ Range(0, 0) ã‚’æŒ‡å®š
 	CD3DX12_RANGE readRange(0, 0);
 	hr = _transformBuff->Map(0, &readRange, (void**)&_mappedTransform);
 
-	if (FAILED(hr)) return false;
+	if (FAILED(hr))
+		return DebugFail("GregoryActor::BuildMesh", "ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ç”¨å®šæ•°ãƒãƒƒãƒ•ã‚¡ã® Map", hr);
 	return true;
 };
 void GregoryActor::Update() {
@@ -116,12 +119,12 @@ void GregoryActor::Update() {
 	_mappedTransform->world = _worldMatrix;
 };
 void GregoryActor::Draw() {
-	// ========= ÀÛ‚Ì•`‰æ =========
+	// ========= å®Ÿéš›ã®æç”» =========
 	auto cmdList = _dx12.CommandList();
 
-	// ƒ[ƒ‹ƒhs—ñib2j‚ğƒ‹[ƒgCBV‚Å’¼Ú“n‚·
+	// ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ï¼ˆb2ï¼‰ã‚’ãƒ«ãƒ¼ãƒˆCBVã§ç›´æ¥æ¸¡ã™
 	cmdList->SetGraphicsRootConstantBufferView(1, _transformBuff->GetGPUVirtualAddress());
-	// ƒWƒIƒƒgƒŠ‚ÌƒZƒbƒg‚Æ•`‰æ
+	// ã‚¸ã‚ªãƒ¡ãƒˆãƒªã®ã‚»ãƒƒãƒˆã¨æç”»
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmdList->IASetVertexBuffers(0, 1, &_vbView);
 	cmdList->IASetIndexBuffer(&_ibView);

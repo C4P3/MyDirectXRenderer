@@ -1,5 +1,5 @@
-Texture2D<float4> tex : register(t0);   // 通常テクスチャ
-SamplerState smp : register(s0);         // サンプラー
+Texture2D<float4> tex : register(t0);   // 騾壼ｸｸ繝�繧ｯ繧ｹ繝√Ε
+SamplerState smp : register(s0);         // 繧ｵ繝ｳ繝励Λ繝ｼ
 
 struct Output
 {
@@ -9,5 +9,5 @@ struct Output
 
 cbuffer PostEffect : register(b0)
 {
-    float4 bkweights[2]; // 16 個の float
+    float4 bkweights[2]; // 16 蛟九�ｮ float
 };

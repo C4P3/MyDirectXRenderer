@@ -1,22 +1,22 @@
-// ’¸“_ƒVƒF[ƒ_[‚©‚çƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚Ö‚Ì‚â‚èæ‚è‚Ég‚¤\‘¢‘Ì
+// é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‹ã‚‰ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã¸ã®ã‚„ã‚Šå–ã‚Šã«ä½¿ã†æ§‹é€ ä½“
 struct Output
 {
-    float4 svpos : SV_Position; // ƒVƒXƒeƒ€—p’¸“_À•W
-    float4 pos : POSITIONT; // ’¸“_À•W
-    float4 normal : NORMAL0; // –@üƒxƒNƒgƒ‹
-    float4 vnormal : NORMAL1;   // ƒrƒ…[•ÏŠ·Œã‚Ì–@üƒxƒNƒgƒ‹
-    float2 uv : TEXCOORD; // uv ’l
-    float3 ray : VECTOR; // ƒxƒNƒgƒ‹
+    float4 svpos : SV_Position; // ã‚·ã‚¹ãƒ†ãƒ ç”¨é ‚ç‚¹åº§æ¨™
+    float4 pos : POSITIONT; // é ‚ç‚¹åº§æ¨™
+    float4 normal : NORMAL0; // æ³•ç·šãƒ™ã‚¯ãƒˆãƒ«
+    float4 vnormal : NORMAL1;   // ãƒ“ãƒ¥ãƒ¼å¤‰æ›å¾Œã®æ³•ç·šãƒ™ã‚¯ãƒˆãƒ«
+    float2 uv : TEXCOORD; // uv å€¤
+    float3 ray : VECTOR; // ãƒ™ã‚¯ãƒˆãƒ«
 };
 
-Texture2D<float4> tex : register(t0); // 0”ÔƒXƒƒbƒg‚Éİ’è‚³‚ê‚½ƒeƒNƒXƒ`ƒƒ
-Texture2D<float4> sph : register(t1); // 1”ÔƒXƒƒbƒg‚Éİ’è‚³‚ê‚½ƒeƒNƒXƒ`ƒƒ
-Texture2D<float4> spa : register(t2); // 2”ÔƒXƒƒbƒg‚Éİ’è‚³‚ê‚½ƒeƒNƒXƒ`ƒƒ
-Texture2D<float4> toon : register(t3);// 3”ÔƒXƒƒbƒg‚Éİ’è‚³‚ê‚½ƒeƒNƒXƒ`ƒƒ
+Texture2D<float4> tex : register(t0); // 0ç•ªã‚¹ãƒ­ãƒƒãƒˆã«è¨­å®šã•ã‚ŒãŸãƒ†ã‚¯ã‚¹ãƒãƒ£
+Texture2D<float4> sph : register(t1); // 1ç•ªã‚¹ãƒ­ãƒƒãƒˆã«è¨­å®šã•ã‚ŒãŸãƒ†ã‚¯ã‚¹ãƒãƒ£
+Texture2D<float4> spa : register(t2); // 2ç•ªã‚¹ãƒ­ãƒƒãƒˆã«è¨­å®šã•ã‚ŒãŸãƒ†ã‚¯ã‚¹ãƒãƒ£
+Texture2D<float4> toon : register(t3);// 3ç•ªã‚¹ãƒ­ãƒƒãƒˆã«è¨­å®šã•ã‚ŒãŸãƒ†ã‚¯ã‚¹ãƒãƒ£
 
 
-SamplerState smp : register(s0); // 0”ÔƒXƒƒbƒg‚Éİ’è‚³‚ê‚½ƒTƒ“ƒvƒ‰
-SamplerState smpToon : register(s1); // 1”ÔƒXƒƒbƒg‚Éİ’è‚³‚ê‚½ƒTƒ“ƒvƒ‰
+SamplerState smp : register(s0); // 0ç•ªã‚¹ãƒ­ãƒƒãƒˆã«è¨­å®šã•ã‚ŒãŸã‚µãƒ³ãƒ—ãƒ©
+SamplerState smpToon : register(s1); // 1ç•ªã‚¹ãƒ­ãƒƒãƒˆã«è¨­å®šã•ã‚ŒãŸã‚µãƒ³ãƒ—ãƒ©
 
 
 cbuffer SceneBuffer : register(b0)
@@ -35,6 +35,6 @@ cbuffer Material : register(b1)
 
 cbuffer Transform : register(b2)
 {
-    matrix world;   // ƒ[ƒ‹ƒh•ÏŠ·s—ñ
-    matrix bones[256];  // ƒ{[ƒ“s—ñ
+    matrix world;   // ãƒ¯ãƒ¼ãƒ«ãƒ‰å¤‰æ›è¡Œåˆ—
+    matrix bones[256];  // ãƒœãƒ¼ãƒ³è¡Œåˆ—
 };

@@ -4,7 +4,7 @@ Output GregoryVS(float4 pos : POSITION, float4 normal : NORMAL)
 {
     Output output;
     output.svpos = mul(mul(mul(proj, view), world), pos);
-    normal.w = 0; // •½sˆÚ“®‚ğ–³Œø‰»
+    normal.w = 0; // å¹³è¡Œç§»å‹•ã‚’ç„¡åŠ¹åŒ–
     output.normal = mul(world, normal).xyz;
     return output;
 }

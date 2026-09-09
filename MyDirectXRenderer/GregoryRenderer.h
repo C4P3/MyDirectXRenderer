@@ -1,10 +1,10 @@
-#pragma once
+ï»¿#pragma once
 
 #include <d3d12.h>
 #include <vector>
-#include <string>          // © AdditionalMaterial::texPath —p
-#include <DirectXMath.h>   // © XMFLOAT3 —p
-#include <wrl/client.h>    // © ComPtr ‚ğƒƒ“ƒo‚É‚Â‚È‚ç
+#include <string>          // â† AdditionalMaterial::texPath ç”¨
+#include <DirectXMath.h>   // â† XMFLOAT3 ç”¨
+#include <wrl/client.h>    // â† ComPtr ã‚’ãƒ¡ãƒ³ãƒã«æŒã¤ãªã‚‰
 
 class Dx12Wrapper;
 class GregoryActor;
@@ -14,7 +14,7 @@ class GregoryRenderer
 {
 private:
 	Dx12Wrapper& _dx12;
-	std::vector<GregoryActor*> _actors;   // ”ñŠ—LBŠ—LÒ‚Í Application
+	std::vector<GregoryActor*> _actors;   // éæ‰€æœ‰ã€‚æ‰€æœ‰è€…ã¯ Application
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState;
 public:

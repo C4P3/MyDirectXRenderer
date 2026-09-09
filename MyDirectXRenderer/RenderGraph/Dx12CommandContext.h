@@ -2,8 +2,6 @@
 //
 // RenderGraph が導出したバリアを ID3D12GraphicsCommandList に翻訳する。
 // パスの execute ラムダは List() でコマンドリストを取り出して従来通り描画する。
-//
-// このファイルは UTF-8 (BOM 付き)。
 #pragma once
 
 #include <d3d12.h>

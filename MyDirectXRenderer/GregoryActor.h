@@ -1,11 +1,11 @@
-#pragma once
+ï»¿#pragma once
 
 #include <d3d12.h>
 #include <vector>
-#include <string>          // © AdditionalMaterial::texPath —p
+#include <string>          // â† AdditionalMaterial::texPath ç”¨
 #include <map>
-#include <DirectXMath.h>   // © XMFLOAT3 —p
-#include <wrl/client.h>    // © ComPtr ‚ğƒƒ“ƒo‚É‚Â‚È‚ç
+#include <DirectXMath.h>   // â† XMFLOAT3 ç”¨
+#include <wrl/client.h>    // â† ComPtr ã‚’ãƒ¡ãƒ³ãƒã«æŒã¤ãªã‚‰
 #include "core/lattice.h"
 
 class Dx12Wrapper;

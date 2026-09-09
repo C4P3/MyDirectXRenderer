@@ -1,8 +1,8 @@
-#pragma once
+ï»¿#pragma once
 #include <d3d12.h>
 #include <DirectXMath.h>
 #include <wrl/client.h>
-// b0 ‚É‘—‚éƒV[ƒ“‹¤’Êƒf[ƒ^Bworld ‚Í“ü‚ê‚È‚¢
+// b0 ã«é€ã‚‹ã‚·ãƒ¼ãƒ³å…±é€šãƒ‡ãƒ¼ã‚¿ã€‚world ã¯å…¥ã‚Œãªã„
 struct SceneData
 {
     DirectX::XMMATRIX view;
@@ -16,7 +16,7 @@ class Scene
 private:
     Dx12Wrapper& _dx12;
     Microsoft::WRL::ComPtr<ID3D12Resource> _sceneBuff;
-    SceneData* _mappedScene = nullptr;      // ‰i‘±ƒ}ƒbƒvBŠO‚É‚Ío‚³‚È‚¢
+    SceneData* _mappedScene = nullptr;      // æ°¸ç¶šãƒãƒƒãƒ—ã€‚å¤–ã«ã¯å‡ºã•ãªã„
 
     DirectX::XMFLOAT3 _eye{ 0, 15, -35 };
     DirectX::XMFLOAT3 _target{ 0, 10, 0 };
@@ -32,7 +32,7 @@ public:
     void Update();
     void DrawDebugGui();
 
-    // ƒ‹[ƒgCBV ‚É“n‚· GPU ‰¼‘zƒAƒhƒŒƒX
+    // ãƒ«ãƒ¼ãƒˆCBV ã«æ¸¡ã™ GPU ä»®æƒ³ã‚¢ãƒ‰ãƒ¬ã‚¹
     D3D12_GPU_VIRTUAL_ADDRESS SceneCBAddress() const {
         return _sceneBuff->GetGPUVirtualAddress();
     }

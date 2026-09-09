@@ -1,4 +1,4 @@
-// 論理層のテスト。GPU が無くても Compile()/Execute() の結果は全部検証できる。
+﻿// 論理層のテスト。GPU が無くても Compile()/Execute() の結果は全部検証できる。
 #include <cstdio>
 #include <string>
 #include <vector>

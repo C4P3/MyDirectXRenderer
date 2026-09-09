@@ -4,11 +4,11 @@ Texture2D<float4> normalTex : register(t1);
 
 float4 DistortionPS(Output input) : SV_TARGET
 {
-    // –@üƒ}ƒbƒv‚Í 0..1 ‚ÅŠi”[‚³‚ê‚Ä‚¢‚é‚Ì‚Å -1..1 ‚É–ß‚·
+    // æ³•ç·šãƒãƒƒãƒ—ã¯ 0..1 ã§æ ¼ç´ã•ã‚Œã¦ã„ã‚‹ã®ã§ -1..1 ã«æˆ»ã™
     float2 nrm = normalTex.Sample(smp, input.uv).xy;
     nrm = nrm * 2.0f - 1.0f;
 
-    // ‚»‚Ì•ª‚¾‚¯ UV ‚ğ‚¸‚ç‚µ‚ÄŒ³‰æ‘œ‚ğƒTƒ“ƒvƒ‹‚·‚é
+    // ãã®åˆ†ã ã‘ UV ã‚’ãšã‚‰ã—ã¦å…ƒç”»åƒã‚’ã‚µãƒ³ãƒ—ãƒ«ã™ã‚‹
     float2 uv = input.uv + nrm * 0.1f;
     return tex.Sample(smp, uv);
 }

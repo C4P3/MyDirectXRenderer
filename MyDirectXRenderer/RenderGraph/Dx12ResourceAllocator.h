@@ -6,8 +6,6 @@
 // 扱うリソースは 2 種類:
 //   - owned    : TexturePool 経由で Allocate() したもの。ディスクリプタもここで確保する
 //   - external : グラフの外で作られたものを預かったもの（スワップチェーンのバックバッファ）
-//
-// このファイルは UTF-8 (BOM 付き)。
 #pragma once
 
 #include <d3d12.h>

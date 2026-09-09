@@ -7,17 +7,17 @@ Output BasicVS(
     min16uint weight : WEIGHT
 )
 {
-    Output output; // ƒsƒNƒZƒ‹ƒVƒF[ƒ_[‚É“n‚·’l
+    Output output; // ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã«æ¸¡ã™å€¤
     
     float w = weight / 100.0f;
-    matrix bm = bones[boneno[0]] * w + bones[boneno[1]] * (1 - w); // üŒ`•âŠÔ
-    pos = mul(bm, pos); // æ‚Éƒ{[ƒ“•ÏŠ·
-    output.svpos = mul(mul(mul(proj, view), world), pos); // ƒVƒF[ƒ_[‚Å‚Í—ñ—Dæ
+    matrix bm = bones[boneno[0]] * w + bones[boneno[1]] * (1 - w); // ç·šå½¢è£œé–“
+    pos = mul(bm, pos); // å…ˆã«ãƒœãƒ¼ãƒ³å¤‰æ›
+    output.svpos = mul(mul(mul(proj, view), world), pos); // ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã§ã¯åˆ—å„ªå…ˆ
     output.pos = mul(world, pos);
-    normal.w = 0; // •½sˆÚ“®¬•ª‚ğŒü‚±‚¤‚É‚·‚é
-    output.normal = mul(world, normal); // –@ü‚É‚àƒ[ƒ‹ƒh•ÏŠ·‚ğs‚¤
+    normal.w = 0; // å¹³è¡Œç§»å‹•æˆåˆ†ã‚’å‘ã“ã†ã«ã™ã‚‹
+    output.normal = mul(world, normal); // æ³•ç·šã«ã‚‚ãƒ¯ãƒ¼ãƒ«ãƒ‰å¤‰æ›ã‚’è¡Œã†
     output.vnormal = mul(view, output.normal);
     output.uv = uv;
-    output.ray = normalize(pos.xyz - eye); // ‹üƒxƒNƒgƒ‹
+    output.ray = normalize(pos.xyz - eye); // è¦–ç·šãƒ™ã‚¯ãƒˆãƒ«
 	return output;
 }

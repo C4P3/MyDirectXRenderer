@@ -13,5 +13,10 @@ C++ / Visual Studio / Windows / DirectX12（DirectXTex, d3dx12.h を使用）
 - 日本語で答える。
 
 ## 注意
-ソースの文字コードは Shift-JIS。コメントが文字化けして読めないことがあるので、その場合はコード部分だけを見て判断し、必要なら聞いてほしい。
-（CLAUDE.md と README.md は UTF-8）
+ソースの文字コードは UTF-8 に統一している。
+
+- `.h` / `.cpp` は **BOM 付き**（MSVC が UTF-8 と判別するため）
+- `.hlsl` / `.hlsli` は **BOM 無し**（fxc が BOM を受け付けず `error X3000: Illegal character in shader file` になるため）
+- `External/` と `d3dx12.h` は他所から持ってきたものなので対象外
+
+新しく作るファイルもこれに合わせること。

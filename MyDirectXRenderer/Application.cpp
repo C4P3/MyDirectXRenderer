@@ -1,4 +1,5 @@
-#include "Application.h"
+ï»¿#include "Application.h"
+#include "Debug.h"
 #include "RenderGraph/Dx12CommandContext.h"
 #include "RenderGraph/Dx12ResourceAllocator.h"
 #include "RenderGraph/Frontend/RenderGraph.h"
@@ -37,10 +38,10 @@ static LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam
     return DefWindowProc(hwnd, msg, wparam, lparam);
 }
 
-// ƒRƒ“ƒXƒgƒ‰ƒNƒ^‚ÌÀ‘•
+// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã®å®Ÿè£…
 Application::~Application() = default;
 
-// ƒEƒBƒ“ƒhƒE‚Ì¶¬
+// ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ç”Ÿæˆ
 bool Application::Init() {
 	_windowClass.cbSize = sizeof(WNDCLASSEX);
 	_windowClass.lpfnWndProc = (WNDPROC)WindowProcedure;
@@ -54,7 +55,7 @@ bool Application::Init() {
 
 	_hwnd = CreateWindow(
 		_windowClass.lpszClassName,
-		_T("DX12 ƒeƒXƒg"),
+		_T("DX12 ãƒ†ã‚¹ãƒˆ"),
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
@@ -66,14 +67,14 @@ bool Application::Init() {
 		nullptr
 	);
 
-	if (!_hwnd) return false;
+	if (!_hwnd) return DebugFail("Application::Init", "ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ç”Ÿæˆ");
 
 	ShowWindow(_hwnd, SW_SHOW);
 
 	// dx12
 	_dx12.reset(new Dx12Wrapper());
 	if (!_dx12->Init(GetWindowHandle(), window_width, window_height)) {
-		return false;
+		return DebugFail("Application::Init", "Dx12Wrapper::Init");
 	}
 
 	// Dx12ResourceAllocator
@@ -82,17 +83,17 @@ bool Application::Init() {
 	// imgui
 	if (ImGui::CreateContext() == nullptr) {
 		assert(0);
-		return false;
+		return DebugFail("Application::Init", "ImGui::CreateContext");
 	}
 
 	bool blnResult = ImGui_ImplWin32_Init(_hwnd);
 	if (!blnResult) {
 		assert(0);
-		return false;
+		return DebugFail("Application::Init", "ImGui_ImplWin32_Init");
 	}
 	ImGui_ImplDX12_InitInfo imgui_init_info = {};
 	imgui_init_info.Device = _dx12->Device();
-	imgui_init_info.NumFramesInFlight = 2;// ƒƒbƒvƒ`ƒF[ƒ“‚ÌƒoƒbƒNƒoƒbƒtƒ@‚Ì” CPU‚ªGPU‚ğ‘Ò‚½‚¸‚É‰½ƒtƒŒ[ƒ€•ªæ‚Ü‚Å‘–‚Á‚Ä‚æ‚¢‚©
+	imgui_init_info.NumFramesInFlight = 2;// ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã®æ•° CPUãŒGPUã‚’å¾…ãŸãšã«ä½•ãƒ•ãƒ¬ãƒ¼ãƒ åˆ†å…ˆã¾ã§èµ°ã£ã¦ã‚ˆã„ã‹
 	imgui_init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 	imgui_init_info.SrvDescriptorHeap = _dx12->GetHeapForImgui().Get();
 	imgui_init_info.LegacySingleSrvCpuDescriptor = _dx12->GetHeapForImgui().Get()->GetCPUDescriptorHandleForHeapStart();
@@ -102,52 +103,59 @@ bool Application::Init() {
 
 	// scene
 	_scene.reset(new Scene(*_dx12));
-	if (!_scene->Init(window_width, window_height)) return false;
+	if (!_scene->Init(window_width, window_height))
+		return DebugFail("Application::Init", "Scene::Init");
 
-	// ƒ}ƒ‹ƒ`ƒpƒXƒŒƒ“ƒ_ƒ‰[
+	// ãƒãƒ«ãƒãƒ‘ã‚¹ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼
 	_peraRenderer.reset(new PeraRenderer(*_dx12));
-	if (!_peraRenderer->Init(*_allocator)) return false; // ƒpƒCƒvƒ‰ƒCƒ“\’z
+	if (!_peraRenderer->Init(*_allocator))   // ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³æ§‹ç¯‰
+		return DebugFail("Application::Init", "PeraRenderer::Init");
 
 	// PMD
 	_pmdRenderer.reset(new PMDRenderer(*_dx12));
-	if (!_pmdRenderer->Init()) return false; // ƒpƒCƒvƒ‰ƒCƒ“\’z
+	if (!_pmdRenderer->Init())               // ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³æ§‹ç¯‰
+		return DebugFail("Application::Init", "PMDRenderer::Init");
 	_pmdActor.reset(new PMDActor(*_dx12));
-	if (_pmdActor->Load("Model/‰‰¹ƒ~ƒN.pmd")) {
+	if (_pmdActor->Load("Model/åˆéŸ³ãƒŸã‚¯.pmd")) {
 		_pmdRenderer->AddActor(_pmdActor.get());
 	}
 	else {
-		_pmdActor.reset();   // Update() ‚ÌŒÄ‚Ño‚µ‘¤‚Å‚à null ƒ`ƒFƒbƒN
+		// ãƒ¢ãƒ‡ãƒ«ãŒç„¡ã„ã®ã¯å¤±æ•—ã§ã¯ãªã„ãŒã€é»™ã£ã¦æ¶ˆãˆã‚‹ã¨æ°—ä»˜ã‘ãªã„ã®ã§æ®‹ã—ã¦ãŠã
+		::OutputDebugStringA("[INFO] PMD ãƒ¢ãƒ‡ãƒ«ã‚’èª­ã¿è¾¼ã‚ãªã‹ã£ãŸã®ã§è¡¨ç¤ºã‚’ã‚¹ã‚­ãƒƒãƒ—ã—ã¾ã™\n");
+		_pmdActor.reset();   // Update() ã®å‘¼ã³å‡ºã—å´ã§ã‚‚ null ãƒã‚§ãƒƒã‚¯
 	}
-	// VMD ƒAƒjƒ[ƒVƒ‡ƒ“
+	// VMD ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³
 	if (_pmdActor) _pmdActor->VMDMotionLoad("Motion/squat.vmd");
 
 
 	// gregory
 	_gregoryRenderer.reset(new GregoryRenderer(*_dx12));
-	if (!_gregoryRenderer->Init()) return false;
+	if (!_gregoryRenderer->Init())
+		return DebugFail("Application::Init", "GregoryRenderer::Init");
 	_gregoryActor.reset(new GregoryActor(*_dx12));
-	if (!_gregoryActor->BuildMesh(16)) return false;
+	if (!_gregoryActor->BuildMesh(16))
+		return DebugFail("Application::Init", "GregoryActor::BuildMesh");
 	_gregoryRenderer->AddActor(_gregoryActor.get());
 
 	return true;
 }
 
-// —­‚Ü‚Á‚Ä‚¢‚éƒƒbƒZ[ƒW‚ğ‘SŒˆ—‚·‚éŠÖ”
-// –ß‚è’l: true = ˆ—Œp‘± / false = WM_QUIT ‚ğŒŸ’m‚µ‚½‚½‚ßI—¹
+// æºœã¾ã£ã¦ã„ã‚‹ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã‚’å…¨ä»¶å‡¦ç†ã™ã‚‹é–¢æ•°
+// æˆ»ã‚Šå€¤: true = å‡¦ç†ç¶™ç¶š / false = WM_QUIT ã‚’æ¤œçŸ¥ã—ãŸãŸã‚çµ‚äº†
 bool ProcessMessages() {
 	MSG msg = {};
 	while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		if (msg.message == WM_QUIT) {
-			return false; // ‘¦À‚ÉI—¹‚ğ’m‚ç‚¹‚é
+			return false; // å³åº§ã«çµ‚äº†ã‚’çŸ¥ã‚‰ã›ã‚‹
 		}
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-	return true; // ƒƒbƒZ[ƒW‚ğ‘S•”J‚«‚«‚Á‚½‚Ì‚Å•`‰æ‚Öi‚Ş
+	return true; // ãƒ¡ãƒƒã‚»ãƒ¼ã‚¸ã‚’å…¨éƒ¨æŒããã£ãŸã®ã§æç”»ã¸é€²ã‚€
 }
 
-// ƒpƒX‚ÆƒŠƒ\[ƒX‚ÌéŒ¾B‚±‚±‚É‚Í GPU ƒRƒ}ƒ“ƒh‚ğˆêØÏ‚Ü‚È‚¢B
-// ƒnƒ“ƒhƒ‹‚ÍƒtƒŒ[ƒ€ŒÀ‚è‚Ì’ligraph.Clear() ‚Å–³Œø‚É‚È‚éj‚È‚Ì‚ÅA–ˆƒtƒŒ[ƒ€‚±‚±‚Åì‚è’¼‚·B
+// ãƒ‘ã‚¹ã¨ãƒªã‚½ãƒ¼ã‚¹ã®å®£è¨€ã€‚ã“ã“ã«ã¯ GPU ã‚³ãƒãƒ³ãƒ‰ã‚’ä¸€åˆ‡ç©ã¾ãªã„ã€‚
+// ãƒãƒ³ãƒ‰ãƒ«ã¯ãƒ•ãƒ¬ãƒ¼ãƒ é™ã‚Šã®å€¤ï¼ˆgraph.Clear() ã§ç„¡åŠ¹ã«ãªã‚‹ï¼‰ãªã®ã§ã€æ¯ãƒ•ãƒ¬ãƒ¼ãƒ ã“ã“ã§ä½œã‚Šç›´ã™ã€‚
 void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 {
 	using rg::LoadOp;
@@ -158,14 +166,14 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 		rg::Format::RGBA8_UNorm, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
 	const rg::TextureDesc depthDesc{ window_width, window_height,
 		rg::Format::D32_Float, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
-	// ƒNƒŠƒA’l‚Í desc ‚ª‚¿ALoadOp::Clear ‚ÌéŒ¾‚¾‚¯‚ÅƒoƒbƒNƒGƒ“ƒh‚ªƒNƒŠƒA‚·‚é
+	// ã‚¯ãƒªã‚¢å€¤ã¯ desc ãŒæŒã¡ã€LoadOp::Clear ã®å®£è¨€ã ã‘ã§ãƒãƒƒã‚¯ã‚¨ãƒ³ãƒ‰ãŒã‚¯ãƒªã‚¢ã™ã‚‹
 	const rg::TextureDesc backbufferDesc{ window_width, window_height,
 		rg::Format::RGBA8_UNorm, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
 
-	// ƒIƒtƒXƒNƒŠ[ƒ“‚Æ[“x‚Í TexturePool ‚ªÀ‘Ì‚ğ‚ÂB–ˆƒtƒŒ[ƒ€éŒ¾‚µ’¼‚·‚ªA
-	// “¯‚¶–¼‘O‚Æ desc ‚È‚ç“¯‚¶•¨—ƒŠƒ\[ƒX‚ª•Ô‚Á‚Ä‚­‚é‚Ì‚ÅŠm•Û‚Í‰‰ñ‚¾‚¯B
-	// ŠO‚ÉÀ‘Ì‚ª‚ ‚é‚Ì‚ÍƒoƒbƒNƒoƒbƒtƒ@‚¾‚¯‚ÅA‚±‚ê‚Í Import ‚·‚éB
-	// requiredFinalState ‚ğ‚ÂƒŠƒ\[ƒX‚ªƒJƒŠƒ“ƒO‚Ìª‚É‚È‚é‚Ì‚ÅAbackbuffer ‚É‚¾‚¯w’è‚·‚éB
+	// ã‚ªãƒ•ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã¨æ·±åº¦ã¯ TexturePool ãŒå®Ÿä½“ã‚’æŒã¤ã€‚æ¯ãƒ•ãƒ¬ãƒ¼ãƒ å®£è¨€ã—ç›´ã™ãŒã€
+	// åŒã˜åå‰ã¨ desc ãªã‚‰åŒã˜ç‰©ç†ãƒªã‚½ãƒ¼ã‚¹ãŒè¿”ã£ã¦ãã‚‹ã®ã§ç¢ºä¿ã¯åˆå›ã ã‘ã€‚
+	// å¤–ã«å®Ÿä½“ãŒã‚ã‚‹ã®ã¯ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã ã‘ã§ã€ã“ã‚Œã¯ Import ã™ã‚‹ã€‚
+	// requiredFinalState ã‚’æŒã¤ãƒªã‚½ãƒ¼ã‚¹ãŒã‚«ãƒªãƒ³ã‚°ã®æ ¹ã«ãªã‚‹ã®ã§ã€backbuffer ã«ã ã‘æŒ‡å®šã™ã‚‹ã€‚
 	TextureHandle pera1 = graph.Create("pera1", colorDesc);
 	TextureHandle pera2 = graph.Create("pera2", colorDesc);
 	TextureHandle pera3 = graph.Create("pera3", colorDesc);
@@ -173,7 +181,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
 
-	// --- 1 –‡–Ú‚ÌƒIƒtƒXƒNƒŠ[ƒ“‚É 3D ‚ğ•`‚­ ---
+	// --- 1 æšç›®ã®ã‚ªãƒ•ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã« 3D ã‚’æã ---
 	struct ScenePass { TextureHandle color, depth; };
 	graph.AddPass<ScenePass>("3D",
 		[&](rg::RenderGraph::Builder& b, ScenePass& d) {
@@ -185,7 +193,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			_gregoryRenderer->Draw(*_scene);
 		});
 
-	// --- ˜c‚İF1 –‡–Ú‚ğ“Ç‚ñ‚Å 2 –‡–Ú‚Ö ---
+	// --- æ­ªã¿ï¼š1 æšç›®ã‚’èª­ã‚“ã§ 2 æšç›®ã¸ ---
 	struct EffectPass { TextureHandle src; };
 	graph.AddPass<EffectPass>("Distortion",
 		[&](rg::RenderGraph::Builder& b, EffectPass& d) {
@@ -198,7 +206,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 				allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::Distortion);
 		});
 
-	// --- ‰¡‚Ú‚©‚µF2 –‡–Ú‚ğ“Ç‚ñ‚Å 3 –‡–Ú‚Ö ---
+	// --- æ¨ªã¼ã‹ã—ï¼š2 æšç›®ã‚’èª­ã‚“ã§ 3 æšç›®ã¸ ---
 	struct BlurPass { TextureHandle src; };
 	graph.AddPass<BlurPass>("BlurH",
 		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
@@ -206,8 +214,8 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			pera3 = b.SetRenderAttachment(pera3, 0, LoadOp::Clear);
 		},
 		[this](const BlurPass& d, rg::CommandContext& ctx) {
-			// “Ç‚Şæ‚ÍƒpƒX‚ÌéŒ¾iSampledReadj‚ÅŒˆ‚Ü‚Á‚Ä‚¢‚éB
-			// ƒnƒ“ƒhƒ‹ ¨ physicalId ¨ SRV ‚Æ‚½‚Ç‚é‚¾‚¯‚ÅA“Yš‚Ío‚Ä‚±‚È‚¢B
+			// èª­ã‚€å…ˆã¯ãƒ‘ã‚¹ã®å®£è¨€ï¼ˆSampledReadï¼‰ã§æ±ºã¾ã£ã¦ã„ã‚‹ã€‚
+			// ãƒãƒ³ãƒ‰ãƒ« â†’ physicalId â†’ SRV ã¨ãŸã©ã‚‹ã ã‘ã§ã€æ·»å­—ã¯å‡ºã¦ã“ãªã„ã€‚
 			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
 			_peraRenderer->Draw(allocator.SrvHeap(),
 				allocator.SrvOf(ctx.PhysicalOf(d.src)),
@@ -215,7 +223,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			);
 		});
 
-	// --- c‚Ú‚©‚µF3 –‡–Ú‚ğ“Ç‚ñ‚ÅƒoƒbƒNƒoƒbƒtƒ@‚Ö ---
+	// --- ç¸¦ã¼ã‹ã—ï¼š3 æšç›®ã‚’èª­ã‚“ã§ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã¸ ---
 	graph.AddPass<BlurPass>("BlurV",
 		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
 			d.src = b.SampledRead(pera3);
@@ -229,7 +237,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			);
 		});
 
-	// --- ImGuiFƒoƒbƒNƒoƒbƒtƒ@‚Éã‘‚«‚·‚éBbb@v1 -> bb@v2 ‚Å BlurV ‚ÌŒã‚ë‚É•À‚Ô ---
+	// --- ImGuiï¼šãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã«ä¸Šæ›¸ãã™ã‚‹ã€‚bb@v1 -> bb@v2 ã§ BlurV ã®å¾Œã‚ã«ä¸¦ã¶ ---
 	struct ImGuiPass { TextureHandle target; };
 	graph.AddPass<ImGuiPass>("ImGui",
 		[&](rg::RenderGraph::Builder& b, ImGuiPass& d) {
@@ -246,43 +254,43 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 
 void Application::Run()
 {
-	// •¨—ƒŠƒ\[ƒX‚ÌÀ‘Ì‚ğ’m‚Á‚Ä‚¢‚é‚Ì‚Í‚±‚ÌƒAƒƒP[ƒ^‚¾‚¯B
-	// RenderGraph ‚à TexturePool ‚à physicalId ‚µ‚©‚¿‰ñ‚ç‚È‚¢B
+	// ç‰©ç†ãƒªã‚½ãƒ¼ã‚¹ã®å®Ÿä½“ã‚’çŸ¥ã£ã¦ã„ã‚‹ã®ã¯ã“ã®ã‚¢ãƒ­ã‚±ãƒ¼ã‚¿ã ã‘ã€‚
+	// RenderGraph ã‚‚ TexturePool ã‚‚ physicalId ã—ã‹æŒã¡å›ã‚‰ãªã„ã€‚
 	rg::TexturePool pool(*_allocator);
 	rg::RenderGraph graph;
 
-	// ƒXƒƒbƒvƒ`ƒF[ƒ“‚Ìƒoƒbƒtƒ@‚ÍÀ‘Ì‚ª–‡”•ª‚ ‚é‚Ì‚ÅA‘S•”“o˜^‚µ‚Ä id ‚ğT‚¦‚Ä‚¨‚­B
-	// –ˆƒtƒŒ[ƒ€ RegisterExternal ‚·‚é‚Æ id ‚ª‘‚¦‘±‚¯‚Ä‚µ‚Ü‚¤B
+	// ã‚¹ãƒ¯ãƒƒãƒ—ãƒã‚§ãƒ¼ãƒ³ã®ãƒãƒƒãƒ•ã‚¡ã¯å®Ÿä½“ãŒæšæ•°åˆ†ã‚ã‚‹ã®ã§ã€å…¨éƒ¨ç™»éŒ²ã—ã¦ id ã‚’æ§ãˆã¦ãŠãã€‚
+	// æ¯ãƒ•ãƒ¬ãƒ¼ãƒ  RegisterExternal ã™ã‚‹ã¨ id ãŒå¢—ãˆç¶šã‘ã¦ã—ã¾ã†ã€‚
 	std::vector<uint32_t> backbufferIds;
 	for (UINT i = 0; i < _dx12->BackBufferCount(); ++i) {
 		backbufferIds.push_back(_allocator->RegisterExternalRenderTarget(
 			_dx12->GetBackBuffer(i), _dx12->GetBackBufferRTV(i)));
 	}
 
-	// ƒƒCƒ“ƒ‹[ƒv
+	// ãƒ¡ã‚¤ãƒ³ãƒ«ãƒ¼ãƒ—
 	while (ProcessMessages()) {
-		// --- ImGuiƒtƒŒ[ƒ€ & UI\’z ---
+		// --- ImGuiãƒ•ãƒ¬ãƒ¼ãƒ  & UIæ§‹ç¯‰ ---
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 		ImGui::SetWindowSize(ImVec2(400, 500), ImGuiCond_::ImGuiCond_FirstUseEver);
 		ImGui::Begin("Rendering Test Menu");
-		_scene->DrawDebugGui();	// ‚±‚±‚ÅƒJƒƒ‰‚ğ‚¢‚¶‚ê‚é
+		_scene->DrawDebugGui();	// ã“ã“ã§ã‚«ãƒ¡ãƒ©ã‚’ã„ã˜ã‚Œã‚‹
 		ImGui::End();
 		ImGui::Render();
 
-		// --- ˜_—XV ---
+		// --- è«–ç†æ›´æ–° ---
 		_scene->Update();
 		if (_pmdActor) _pmdActor->Update();
 		_gregoryActor->Update();
 
-		// --- •`‰æ ---
-		// ƒoƒbƒNƒoƒbƒtƒ@‚ÍƒtƒŒ[ƒ€‚²‚Æ‚ÉÀ‘Ì‚ª•Ï‚í‚é‚Ì‚ÅA‚»‚Ì–‡‚Ì id ‚Å Import ‚·‚é
+		// --- æç”» ---
+		// ãƒãƒƒã‚¯ãƒãƒƒãƒ•ã‚¡ã¯ãƒ•ãƒ¬ãƒ¼ãƒ ã”ã¨ã«å®Ÿä½“ãŒå¤‰ã‚ã‚‹ã®ã§ã€ãã®æšã® id ã§ Import ã™ã‚‹
 		graph.Clear();
 		BuildGraph(graph, backbufferIds[_dx12->CurrentBackBufferIndex()]);
 
 		pool.BeginFrame();
-		// —\Z‚ğİ’è‚µ‚Ä‚¢‚È‚¢‚Ì‚Å¡‚Í¸”s‚µ‚È‚¢B’´‰ß‚Ìˆµ‚¢‚Í’iŠK 4 ‚ÅB
+		// äºˆç®—ã‚’è¨­å®šã—ã¦ã„ãªã„ã®ã§ä»Šã¯å¤±æ•—ã—ãªã„ã€‚è¶…éæ™‚ã®æ‰±ã„ã¯æ®µéš 4 ã§ã€‚
 		const bool compiled = graph.Compile(pool);
 		assert(compiled && "RenderGraph::Compile failed");
 		(void)compiled;
@@ -292,7 +300,7 @@ void Application::Run()
 
 		_dx12->EndDraw();
 
-		// EndDraw() ‚ª WaitForGPU() ‚ÅŠ®‘S“¯Šú‚µ‚Ä‚¢‚é‚Ì‚ÅA‚»‚Ìê‚Å‰ñû‚µ‚Ä‚æ‚¢B
+		// EndDraw() ãŒ WaitForGPU() ã§å®Œå…¨åŒæœŸã—ã¦ã„ã‚‹ã®ã§ã€ãã®å ´ã§å›åã—ã¦ã‚ˆã„ã€‚
 		pool.EndFrame(_dx12->FenceVal());
 		pool.Reclaim(_dx12->FenceVal());
 	}

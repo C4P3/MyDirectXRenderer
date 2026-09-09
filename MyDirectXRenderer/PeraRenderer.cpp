@@ -1,7 +1,7 @@
-
+ï»¿
 #include <Windows.h>
 #include <vector>
-#include <wrl/client.h> // ComPtr—p
+#include <wrl/client.h> // ComPtrç”¨
 #include <string>
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -11,6 +11,7 @@
 
 #include "d3dx12.h"
 #include "PeraRenderer.h"
+#include "Debug.h"
 #include "Dx12Wrapper.h"
 #include "Scene.h"
 #include "RenderGraph/Dx12ResourceAllocator.h"
@@ -36,7 +37,7 @@ namespace
 
 	std::vector<float> GetGaussianWeight(size_t count, float s)
 	{
-		std::vector<float> weights(count); // ƒEƒFƒCƒg”z—ñ•Ô‹p—p
+		std::vector<float> weights(count); // ã‚¦ã‚§ã‚¤ãƒˆé…åˆ—è¿”å´ç”¨
 		float x = 0.0f;
 		float total = 0.0f;
 
@@ -49,7 +50,7 @@ namespace
 
 		total = total * 2.0f - 1;
 
-		// ‘«‚µ‚Ä 1 ‚É‚È‚é‚æ‚¤‚É‚·‚é
+		// è¶³ã—ã¦ 1 ã«ãªã‚‹ã‚ˆã†ã«ã™ã‚‹
 		for (auto& wgt : weights)
 		{
 			wgt /= total;
@@ -66,18 +67,18 @@ struct PeraVertex
 	XMFLOAT2 uv;
 };
 
-// ‰Šú‰»FƒVƒF[ƒ_[ƒRƒ“ƒpƒCƒ‹Aƒ‹[ƒgƒVƒOƒlƒ`ƒƒAPSO‚Ìì¬‚ğs‚¤
+// åˆæœŸåŒ–ï¼šã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«ã€ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã€PSOã®ä½œæˆã‚’è¡Œã†
 bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 {
-	// dx12.Device() ‚ğg‚Á‚Äƒ‹[ƒgƒVƒOƒlƒ`ƒƒ‚âPSO‚ğì¬‚µA
-	// ƒƒ“ƒo•Ï”‚Ì _rootSignature ‚Æ _pipelineState ‚ÉŠi”[
+	// dx12.Device() ã‚’ä½¿ã£ã¦ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã‚„PSOã‚’ä½œæˆã—ã€
+	// ãƒ¡ãƒ³ãƒå¤‰æ•°ã® _rootSignature ã¨ _pipelineState ã«æ ¼ç´
 
-	// ƒyƒ‰ƒ|ƒŠƒSƒ“—p’¸“_ƒoƒbƒtƒ@[(‘¼‚ÌRender‚Å‚ÍActor‚ÌŠÇŠ‚¾‚ªA’Z‚¢‚Ì‚Å‚±‚±‚É‘‚­)
+	// ãƒšãƒ©ãƒãƒªã‚´ãƒ³ç”¨é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ãƒ¼(ä»–ã®Renderã§ã¯Actorã®ç®¡è½„ã ãŒã€çŸ­ã„ã®ã§ã“ã“ã«æ›¸ã)
 	PeraVertex pv[4] = {
-		{ {-1,-1, 0.1 }, {0, 1} },	// ¶‰º
-		{ {-1, 1, 0.1 }, {0, 0} },	// ¶ã
-		{ { 1,-1, 0.1 }, {1, 1} },	// ‰E‰º
-		{ { 1, 1, 0.1 }, {1, 0} }	// ‰Eã
+		{ {-1,-1, 0.1 }, {0, 1} },	// å·¦ä¸‹
+		{ {-1, 1, 0.1 }, {0, 0} },	// å·¦ä¸Š
+		{ { 1,-1, 0.1 }, {1, 1} },	// å³ä¸‹
+		{ { 1, 1, 0.1 }, {1, 0} }	// å³ä¸Š
 	};
 
 	HRESULT result;
@@ -102,7 +103,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	copy(begin(pv), end(pv), mappedPera);
 	_peraVB->Unmap(0, nullptr);
 
-	// ‚Ú‚©‚µƒEƒFƒCƒg
+	// ã¼ã‹ã—ã‚¦ã‚§ã‚¤ãƒˆ
 	auto weights = GetGaussianWeight(8, 3.0f);
 	resourceDesc = CD3DX12_RESOURCE_DESC::Buffer(
 		(sizeof(weights[0]) * weights.size() + 0xff) & ~0xff
@@ -125,11 +126,11 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 
 
 	D3D12_DESCRIPTOR_RANGE ranges[2] = {};
-	// t0 : ‘O‚ÌƒpƒX‚ÌŒ‹‰Ê
+	// t0 : å‰ã®ãƒ‘ã‚¹ã®çµæœ
 	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
 	ranges[0].BaseShaderRegister = 0;  // 0
 	ranges[0].NumDescriptors = 1;
-	// t1 : –@üƒ}ƒbƒv
+	// t1 : æ³•ç·šãƒãƒƒãƒ—
 	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
 	ranges[1].BaseShaderRegister = 1;  // 1
 	ranges[1].NumDescriptors = 1;
@@ -140,7 +141,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	rp[0].DescriptorTable.pDescriptorRanges = &ranges[0];
 	rp[0].DescriptorTable.NumDescriptorRanges = 1;
 
-	rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;   // ƒq[ƒv•s—v
+	rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;   // ãƒ’ãƒ¼ãƒ—ä¸è¦
 	rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rp[1].Descriptor.ShaderRegister = 0;   // b0
 
@@ -151,7 +152,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 
 	D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0); // s0
 
-	// ƒ‹[ƒgƒVƒOƒlƒ`ƒƒ
+	// ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 	rootSignatureDesc.NumParameters = 3;
 	rootSignatureDesc.pParameters = rp;
@@ -171,7 +172,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 		if (errorBlob) {
 			OutputDebugStringA(static_cast<char*>(errorBlob->GetBufferPointer()));
 		}
-		return false;
+		return DebugFail("PeraRenderer::Init", "ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã®ã‚·ãƒªã‚¢ãƒ©ã‚¤ã‚º", result);
 	}
 	result = _dx12.Device()->CreateRootSignature(
 		0,
@@ -179,11 +180,12 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 		rootSigBlob->GetBufferSize(),
 		IID_PPV_ARGS(&_rootSignature)
 	);
-	if (FAILED(result)) return false;
+	if (FAILED(result))
+		return DebugFail("PeraRenderer::Init", "ãƒ«ãƒ¼ãƒˆã‚·ã‚°ãƒãƒãƒ£ã®ç”Ÿæˆ", result);
 	rootSigBlob.Reset();
 
-	// EƒpƒCƒvƒ‰ƒCƒ“ƒXƒe[ƒgƒIƒuƒWƒFƒNƒg(PSO)‚Ìì¬
-	// ƒVƒF[ƒ_[‚ÌƒZƒbƒg
+	// ãƒ»ãƒ‘ã‚¤ãƒ—ãƒ©ã‚¤ãƒ³ã‚¹ãƒ†ãƒ¼ãƒˆã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ(PSO)ã®ä½œæˆ
+	// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã‚»ãƒƒãƒˆ
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
 	gpipeline.pRootSignature = _rootSignature.Get();
 
@@ -196,7 +198,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	gpipeline.SampleDesc.Count = 1;
 	gpipeline.SampleDesc.Quality = 0;
 
-	// ƒŒƒCƒAƒEƒg
+	// ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆ
 	D3D12_INPUT_ELEMENT_DESC inputLayout[2] = {
 		{
 			"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
@@ -209,14 +211,14 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
 		}
 	};
-	gpipeline.InputLayout.pInputElementDescs = inputLayout; // ƒŒƒCƒAƒEƒgæ“ªƒAƒhƒŒƒX
-	gpipeline.InputLayout.NumElements = _countof(inputLayout); // ƒŒƒCƒAƒEƒg”z—ñ‚Ì—v‘f”
+	gpipeline.InputLayout.pInputElementDescs = inputLayout; // ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆå…ˆé ­ã‚¢ãƒ‰ãƒ¬ã‚¹
+	gpipeline.InputLayout.NumElements = _countof(inputLayout); // ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆé…åˆ—ã®è¦ç´ æ•°
 
-	// EƒVƒF[ƒ_[‚ÌƒRƒ“ƒpƒCƒ‹
+	// ãƒ»ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«
 	ComPtr<ID3DBlob> _vsBlob = nullptr;
 	ComPtr<ID3DBlob> _psBlob = nullptr;
 
-	// ƒRƒ“ƒpƒCƒ‹‚ÆƒGƒ‰[o—Í‚ğˆêŠ‡‚Åˆµ‚¤ƒ[ƒJƒ‹ŠÖ”
+	// ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«ã¨ã‚¨ãƒ©ãƒ¼å‡ºåŠ›ã‚’ä¸€æ‹¬ã§æ‰±ã†ãƒ­ãƒ¼ã‚«ãƒ«é–¢æ•°
 	auto compileShader = [](const wchar_t* fileName, const char* entryPoint, const char* target, ComPtr<ID3DBlob>& outBlob) -> bool {
 		ComPtr<ID3DBlob> errorBlob = nullptr;
 
@@ -231,8 +233,13 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 		);
 
 		if (FAILED(hr)) {
+			::OutputDebugStringA("[FAIL] ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«: ");
+			::OutputDebugStringW(fileName);
+			::OutputDebugStringA(" / ");
+			::OutputDebugStringA(entryPoint);
+			::OutputDebugStringA("\n");
 			if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
-				::OutputDebugStringA("ƒtƒ@ƒCƒ‹‚ªŒ©“–‚½‚è‚Ü‚¹‚ñ\n");
+				::OutputDebugStringA("ãƒ•ã‚¡ã‚¤ãƒ«ãŒè¦‹å½“ãŸã‚Šã¾ã›ã‚“\n");
 			}
 			else if (errorBlob) {
 				std::string errstr(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize());
@@ -244,7 +251,8 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 		return true;
 		};
 
-	if (!compileShader(L"Shader/peraVertex.hlsl", "vs", "vs_5_0", _vsBlob)) return false;
+	if (!compileShader(L"Shader/peraVertex.hlsl", "vs", "vs_5_0", _vsBlob))
+		return DebugFail("PeraRenderer::Init", "peraVertex.hlsl ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«");
 	gpipeline.VS = CD3DX12_SHADER_BYTECODE(_vsBlob.Get());
 
 	struct EffectShader { Effect effect; const wchar_t* file; const char* entry; };
@@ -256,24 +264,28 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	};
 
 	for (const auto& s : kEffectShaders) {
-		if (!compileShader(s.file, s.entry, "ps_5_0", _psBlob)) return false;
+		if (!compileShader(s.file, s.entry, "ps_5_0", _psBlob))
+			return DebugFail("PeraRenderer::Init", "ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ«");
 		gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
 		result = _dx12.Device()->CreateGraphicsPipelineState(
 			&gpipeline, IID_PPV_ARGS(&_psos[static_cast<size_t>(s.effect)]));
-		if (FAILED(result)) return false;
+		if (FAILED(result))
+			return DebugFail("PeraRenderer::Init", "ã‚¨ãƒ•ã‚§ã‚¯ãƒˆç”¨ PSO ã®ç”Ÿæˆ", result);
 	}
 
 	DirectX::TexMetadata metadata = {};
 	DirectX::ScratchImage scratchImg = {};
 	HRESULT hr = DirectX::LoadFromWICFile(
 		L"Texture/normalmap.jpg", DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
-	if (FAILED(hr)) return false;
+	if (FAILED(hr))
+		return DebugFail("PeraRenderer::Init", "æ³•ç·šãƒãƒƒãƒ—ã®èª­ã¿è¾¼ã¿ï¼ˆTexture/normalmap.jpgï¼‰", hr);
 
 	auto img = scratchImg.GetImage(0, 0, 0);
 	_normalMap = _dx12.CreateTextureFromData(
 		metadata.width, metadata.height, metadata.format,
 		img->pixels, img->rowPitch, img->slicePitch);
-	if (!_normalMap) return false;
+	if (!_normalMap)
+		return DebugFail("PeraRenderer::Init", "æ³•ç·šãƒãƒƒãƒ—ã®ãƒªã‚½ãƒ¼ã‚¹ç”Ÿæˆ");
 
 	const uint32_t id = allocator.RegisterExternalTexture(_normalMap.Get());
 	_normalMapSrv = allocator.SrvOf(id);
@@ -281,7 +293,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	return true;
 }
 
-// •`‰æƒRƒ}ƒ“ƒh‚ÌÏ‚İ‚İ
+// æç”»ã‚³ãƒãƒ³ãƒ‰ã®ç©ã¿è¾¼ã¿
 void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
 	Effect effect)
 {
@@ -290,7 +302,7 @@ void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HAND
 	cmdList->SetPipelineState(_psos[static_cast<size_t>(effect)].Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
-	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // t0 ‚à t1 ‚à‚±‚Ì1–{‚Ì’†‚É‚ ‚é
+	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // t0 ã‚‚ t1 ã‚‚ã“ã®1æœ¬ã®ä¸­ã«ã‚ã‚‹
 	cmdList->SetGraphicsRootDescriptorTable(0, srv);
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 	cmdList->SetGraphicsRootDescriptorTable(2, _normalMapSrv);

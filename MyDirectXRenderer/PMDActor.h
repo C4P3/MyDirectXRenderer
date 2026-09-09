@@ -1,18 +1,18 @@
-#pragma once
+ï»¿#pragma once
 
 #include <d3d12.h>
 #include <vector>
 #include <array>
-#include <string>          // © AdditionalMaterial::texPath —p
+#include <string>          // â† AdditionalMaterial::texPath ç”¨
 #include <map>
 #include <unordered_map>
-#include <DirectXMath.h>   // © XMFLOAT3 —p
-#include <wrl/client.h>    // © ComPtr ‚ğƒƒ“ƒo‚É‚Â‚È‚ç
+#include <DirectXMath.h>   // â† XMFLOAT3 ç”¨
+#include <wrl/client.h>    // â† ComPtr ã‚’ãƒ¡ãƒ³ãƒã«æŒã¤ãªã‚‰
 #include "PMDRenderer.h"
 
 class Dx12Wrapper;
 
-// ’¸“_ƒf[ƒ^\‘¢‘Ì
+// é ‚ç‚¹ãƒ‡ãƒ¼ã‚¿æ§‹é€ ä½“
 struct Vertex
 {
 	DirectX::XMFLOAT3 pos;
@@ -21,12 +21,12 @@ struct Vertex
 
 struct PMDHeader
 {
-	float version;		// —á : 00 00 80 3F == 1.00
-	char model_name[20];// ƒ‚ƒfƒ‹–¼
-	char comment[256];	// ƒ‚ƒfƒ‹ƒRƒƒ“ƒg
+	float version;		// ä¾‹ : 00 00 80 3F == 1.00
+	char model_name[20];// ãƒ¢ãƒ‡ãƒ«å
+	char comment[256];	// ãƒ¢ãƒ‡ãƒ«ã‚³ãƒ¡ãƒ³ãƒˆ
 };
 
-// ƒVƒF[ƒ_[‚É“n‚·À•Wƒf[ƒ^
+// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã«æ¸¡ã™åº§æ¨™ãƒ‡ãƒ¼ã‚¿
 struct Transform
 {
 	DirectX::XMMATRIX world;
@@ -35,40 +35,40 @@ struct Transform
 
 struct PMDVertex
 {
-	DirectX::XMFLOAT3 pos;				// ’¸“_À•W		: 12ƒoƒCƒg
-	DirectX::XMFLOAT3 normal;			// –@üƒxƒNƒgƒ‹	: 12ƒoƒCƒg
-	DirectX::XMFLOAT2 uv;				// uvÀ•W		: 8ƒoƒCƒg
-	unsigned short boneNo[2];	// ƒ{[ƒ“”Ô†	: 4ƒoƒCƒg
-	unsigned char boneWeight;	// ƒ{[ƒ“‰e‹¿“x : 1ƒoƒCƒg
-	unsigned char edgeFlg;		// —ÖŠsüƒtƒ‰ƒO	: 1ƒoƒCƒg
-	unsigned char padding[2];	// –¾¦“I‚É2ƒoƒCƒg–„‚ß‚é (‡Œv40ƒoƒCƒg)
+	DirectX::XMFLOAT3 pos;				// é ‚ç‚¹åº§æ¨™		: 12ãƒã‚¤ãƒˆ
+	DirectX::XMFLOAT3 normal;			// æ³•ç·šãƒ™ã‚¯ãƒˆãƒ«	: 12ãƒã‚¤ãƒˆ
+	DirectX::XMFLOAT2 uv;				// uvåº§æ¨™		: 8ãƒã‚¤ãƒˆ
+	unsigned short boneNo[2];	// ãƒœãƒ¼ãƒ³ç•ªå·	: 4ãƒã‚¤ãƒˆ
+	unsigned char boneWeight;	// ãƒœãƒ¼ãƒ³å½±éŸ¿åº¦ : 1ãƒã‚¤ãƒˆ
+	unsigned char edgeFlg;		// è¼ªéƒ­ç·šãƒ•ãƒ©ã‚°	: 1ãƒã‚¤ãƒˆ
+	unsigned char padding[2];	// æ˜ç¤ºçš„ã«2ãƒã‚¤ãƒˆåŸ‹ã‚ã‚‹ (åˆè¨ˆ40ãƒã‚¤ãƒˆ)
 };
 
 struct BoneNode
 {
-	uint32_t boneIdx;		// ƒ{[ƒ“ƒCƒ“ƒfƒbƒNƒX
-	uint32_t boneType;		// ƒ{[ƒ“í•Ê
-	uint32_t ikParentBone;	// IK eƒ{[ƒ“
-	DirectX::XMFLOAT3 startPos;	// ƒ{[ƒ“Šî€“_i‰ñ“]‚Ì’†Sj
-	std::vector<BoneNode*> children;	// qƒm[ƒh
+	uint32_t boneIdx;		// ãƒœãƒ¼ãƒ³ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+	uint32_t boneType;		// ãƒœãƒ¼ãƒ³ç¨®åˆ¥
+	uint32_t ikParentBone;	// IK è¦ªãƒœãƒ¼ãƒ³
+	DirectX::XMFLOAT3 startPos;	// ãƒœãƒ¼ãƒ³åŸºæº–ç‚¹ï¼ˆå›è»¢ã®ä¸­å¿ƒï¼‰
+	std::vector<BoneNode*> children;	// å­ãƒãƒ¼ãƒ‰
 };
 
 struct PMDIK
 {
-	uint16_t boneIdx;	// IK ‘ÎÛ‚Ìƒ{[ƒ“‚ğ¦‚·
-	uint16_t targetIdx;	// ƒ^[ƒQƒbƒg‚É‹ß‚Ã‚¯‚é‚½‚ß‚Ìƒ{[ƒ“‚ÌƒCƒ“ƒfƒbƒNƒX
-	uint16_t iterations;// s‰ñ”
-	float limit;		// 1‰ñ‚ ‚½‚è‚Ì‰ñ“]§ŒÀ
-	std::vector<uint16_t> nodeIdxes; // ŠÔ‚Ìƒm[ƒh”Ô†
+	uint16_t boneIdx;	// IK å¯¾è±¡ã®ãƒœãƒ¼ãƒ³ã‚’ç¤ºã™
+	uint16_t targetIdx;	// ã‚¿ãƒ¼ã‚²ãƒƒãƒˆã«è¿‘ã¥ã‘ã‚‹ãŸã‚ã®ãƒœãƒ¼ãƒ³ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+	uint16_t iterations;// è©¦è¡Œå›æ•°
+	float limit;		// 1å›ã‚ãŸã‚Šã®å›è»¢åˆ¶é™
+	std::vector<uint16_t> nodeIdxes; // é–“ã®ãƒãƒ¼ãƒ‰ç•ªå·
 };
 
 struct KeyFrame
 {
-	unsigned int frameNo;			// ƒAƒjƒ[ƒVƒ‡ƒ“ŠJn‚©‚ç‚ÌƒtƒŒ[ƒ€”
-	DirectX::XMVECTOR quaternion;	// ƒNƒH[ƒ^ƒjƒIƒ“
-	DirectX::XMFLOAT3 offset;		// IK‚Ì‰ŠúÀ•W‚©‚ç‚ÌƒIƒtƒZƒbƒgî•ñ
-	DirectX::XMFLOAT2 p1, p2;			// ‰ñ“]—p ƒxƒWƒF‹Èü‚Ì’†ŠÔƒRƒ“ƒgƒ[ƒ‹ƒ|ƒCƒ“ƒg
-	DirectX::XMFLOAT2 tp1[3], tp2[3];	// ˆÚ“® X / Y / Z —p
+	unsigned int frameNo;			// ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³é–‹å§‹ã‹ã‚‰ã®ãƒ•ãƒ¬ãƒ¼ãƒ æ•°
+	DirectX::XMVECTOR quaternion;	// ã‚¯ã‚©ãƒ¼ã‚¿ãƒ‹ã‚ªãƒ³
+	DirectX::XMFLOAT3 offset;		// IKã®åˆæœŸåº§æ¨™ã‹ã‚‰ã®ã‚ªãƒ•ã‚»ãƒƒãƒˆæƒ…å ±
+	DirectX::XMFLOAT2 p1, p2;			// å›è»¢ç”¨ ãƒ™ã‚¸ã‚§æ›²ç·šã®ä¸­é–“ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ«ãƒã‚¤ãƒ³ãƒˆ
+	DirectX::XMFLOAT2 tp1[3], tp2[3];	// ç§»å‹• X / Y / Z ç”¨
 
 	KeyFrame(
 		unsigned int frameNo = 0,
@@ -93,13 +93,13 @@ struct KeyFrame
 	}
 };
 
-// IK ƒIƒ“ƒIƒtƒf[ƒ^
+// IK ã‚ªãƒ³ã‚ªãƒ•ãƒ‡ãƒ¼ã‚¿
 struct VMDIKEnable
 {
-	// ƒL[ƒtƒŒ[ƒ€‚ª‚ ‚éƒtƒŒ[ƒ€”Ô†
+	// ã‚­ãƒ¼ãƒ•ãƒ¬ãƒ¼ãƒ ãŒã‚ã‚‹ãƒ•ãƒ¬ãƒ¼ãƒ ç•ªå·
 	uint32_t frameNo;
 
-	// –¼‘O‚ÆƒIƒ“ƒIƒtƒtƒ‰ƒO‚Ìƒ}ƒbƒv
+	// åå‰ã¨ã‚ªãƒ³ã‚ªãƒ•ãƒ•ãƒ©ã‚°ã®ãƒãƒƒãƒ—
 	std::unordered_map<std::string, bool> ikEnableTable;
 };
 
@@ -117,7 +117,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12Resource> _whiteTex = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _blackTex = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _grayGradationTex = nullptr;
-	unsigned int indicesNum = 0;	// ‚±‚Ìƒ}ƒeƒŠƒAƒ‹‚ªŠ„‚è“–‚Ä‚ç‚ê‚éƒCƒ“ƒfƒbƒNƒX”
+	unsigned int indicesNum = 0;	// ã“ã®ãƒãƒ†ãƒªã‚¢ãƒ«ãŒå‰²ã‚Šå½“ã¦ã‚‰ã‚Œã‚‹ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹æ•°
 	std::vector<Material> materials = {};
 	Transform* _mappedTransform = nullptr;
 	float angle = 0.0f;
@@ -125,7 +125,7 @@ private:
 	std::vector<DirectX::XMMATRIX> _boneMatrices = {};
 	std::map<std::string, BoneNode> _boneNodeTable = {};
 	std::unordered_map<std::string, std::vector<KeyFrame>> _motiondata;
-	DWORD _startTime;	// ƒAƒjƒ[ƒVƒ‡ƒ“ŠJn‚Ìƒ~ƒŠ•b
+	DWORD _startTime;	// ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³é–‹å§‹ã®ãƒŸãƒªç§’
 	unsigned int _duration = 0;
 	std::vector<std::string> _boneNameArray;
 	std::vector<BoneNode*> _boneNodeAddressArray;
@@ -138,14 +138,14 @@ private:
 	float GetYFromXOnBezier(float x, const DirectX::XMFLOAT2& a, const DirectX::XMFLOAT2& b, uint8_t n);
 
 	void IKSolve(unsigned int frameNo);
-	// CCD-IK ‚É‚æ‚èƒ{[ƒ“•ûŒü‚ğ‰ğŒˆ‚·‚é
-	// @param ik ‘ÎÛ IK ƒIƒuƒWƒFƒNƒg
+	// CCD-IK ã«ã‚ˆã‚Šãƒœãƒ¼ãƒ³æ–¹å‘ã‚’è§£æ±ºã™ã‚‹
+	// @param ik å¯¾è±¡ IK ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
 	void SolveCCDIK(const PMDIK& ik);
-	// —]Œ·’è— IK ‚É‚æ‚èƒ{[ƒ“•ûŒü‚ğ‰ğŒˆ‚·‚é
-	// @param ik ‘ÎÛ IK ƒIƒuƒWƒFƒNƒg
+	// ä½™å¼¦å®šç† IK ã«ã‚ˆã‚Šãƒœãƒ¼ãƒ³æ–¹å‘ã‚’è§£æ±ºã™ã‚‹
+	// @param ik å¯¾è±¡ IK ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
 	void SolveCosineIK(const PMDIK& ik);
-	// LookAt s—ñ‚É‚æ‚èƒ{[ƒ“•ûŒü‚ğ‰ğŒˆ
-	// @param ik ‘ÎÛ IK ƒIƒuƒWƒFƒNƒg
+	// LookAt è¡Œåˆ—ã«ã‚ˆã‚Šãƒœãƒ¼ãƒ³æ–¹å‘ã‚’è§£æ±º
+	// @param ik å¯¾è±¡ IK ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
 	void SolveLookAt(const PMDIK& ik);
 public:
 	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}

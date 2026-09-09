@@ -1,7 +1,7 @@
-#pragma once
+ï»¿#pragma once
 
 #include <d3d12.h>
-#include <wrl/client.h>    // © ComPtr ‚ğƒƒ“ƒo‚É‚Â‚È‚ç
+#include <wrl/client.h>    // â† ComPtr ã‚’ãƒ¡ãƒ³ãƒã«æŒã¤ãªã‚‰
 
 class Dx12Wrapper;
 class Dx12ResourceAllocator;
@@ -30,8 +30,8 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psos[static_cast<size_t>(Effect::Count)];
 public:
 	PeraRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
-	// “Ç‚ŞƒeƒNƒXƒ`ƒƒ‚Í RenderGraph ‚ª‰ğŒˆ‚µ‚Ä“n‚·i‚Ç‚Ì•¨—ƒŠƒ\[ƒX‚©‚Í
-	// ƒpƒX‚Ì SampledRead éŒ¾‚ÅŒˆ‚Ü‚é‚Ì‚ÅA‚±‚±‚Å“Yš‚ğ’m‚é•K—v‚Í‚È‚¢j
+	// èª­ã‚€ãƒ†ã‚¯ã‚¹ãƒãƒ£ã¯ RenderGraph ãŒè§£æ±ºã—ã¦æ¸¡ã™ï¼ˆã©ã®ç‰©ç†ãƒªã‚½ãƒ¼ã‚¹ã‹ã¯
+	// ãƒ‘ã‚¹ã® SampledRead å®£è¨€ã§æ±ºã¾ã‚‹ã®ã§ã€ã“ã“ã§æ·»å­—ã‚’çŸ¥ã‚‹å¿…è¦ã¯ãªã„ï¼‰
 	bool Init(Dx12ResourceAllocator& allocator);
 	void Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
 		Effect effect);

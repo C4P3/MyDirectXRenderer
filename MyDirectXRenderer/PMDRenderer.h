@@ -1,37 +1,37 @@
-#pragma once
+ï»¿#pragma once
 
 #include <d3d12.h>
 #include <vector>
-#include <string>          // © AdditionalMaterial::texPath —p
-#include <DirectXMath.h>   // © XMFLOAT3 —p
-#include <wrl/client.h>    // © ComPtr ‚ğƒƒ“ƒo‚É‚Â‚È‚ç
+#include <string>          // â† AdditionalMaterial::texPath ç”¨
+#include <DirectXMath.h>   // â† XMFLOAT3 ç”¨
+#include <wrl/client.h>    // â† ComPtr ã‚’ãƒ¡ãƒ³ãƒã«æŒã¤ãªã‚‰
 
 class Dx12Wrapper;
 class PMDActor;
 class Scene;
 
-// ƒVƒF[ƒ_[‘¤‚É“Š‚°‚ç‚ê‚éƒ}ƒeƒŠƒAƒ‹ƒf[ƒ^
+// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼å´ã«æŠ•ã’ã‚‰ã‚Œã‚‹ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ‡ãƒ¼ã‚¿
 struct MaterialForHlsl
 {
-	DirectX::XMFLOAT3 diffuse;	// ƒfƒBƒtƒ…[ƒYF
-	float alpha;	// ƒfƒBƒtƒ…[ƒYƒ¿
-	DirectX::XMFLOAT3 specular;	// ƒXƒyƒLƒ…ƒ‰F
-	float specularity;	// ƒXƒyƒLƒ…ƒ‰‚Ì‹­‚³iæZ’lj
-	DirectX::XMFLOAT3 ambient;	// ƒAƒ“ƒrƒGƒ“ƒgF
+	DirectX::XMFLOAT3 diffuse;	// ãƒ‡ã‚£ãƒ•ãƒ¥ãƒ¼ã‚ºè‰²
+	float alpha;	// ãƒ‡ã‚£ãƒ•ãƒ¥ãƒ¼ã‚ºÎ±
+	DirectX::XMFLOAT3 specular;	// ã‚¹ãƒšã‚­ãƒ¥ãƒ©è‰²
+	float specularity;	// ã‚¹ãƒšã‚­ãƒ¥ãƒ©ã®å¼·ã•ï¼ˆä¹—ç®—å€¤ï¼‰
+	DirectX::XMFLOAT3 ambient;	// ã‚¢ãƒ³ãƒ“ã‚¨ãƒ³ãƒˆè‰²
 };
 
-// ‚»‚êˆÈŠO‚Ìƒ}ƒeƒŠƒAƒ‹ƒf[ƒ^
+// ãã‚Œä»¥å¤–ã®ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ‡ãƒ¼ã‚¿
 struct AdditionalMaterial
 {
-	std::string texPath;	// ƒeƒNƒXƒ`ƒƒƒtƒ@ƒCƒ‹ƒpƒX
-	unsigned char toonIdx;	// ƒgƒD[ƒ“”Ô†
-	unsigned char edgeFlg;	// ƒ}ƒeƒŠƒAƒ‹‚²‚Æ‚Ì—ÖŠsüƒtƒ‰ƒO
+	std::string texPath;	// ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¹
+	unsigned char toonIdx;	// ãƒˆã‚¥ãƒ¼ãƒ³ç•ªå·
+	unsigned char edgeFlg;	// ãƒãƒ†ãƒªã‚¢ãƒ«ã”ã¨ã®è¼ªéƒ­ç·šãƒ•ãƒ©ã‚°
 };
 
-// ‘S‘Ì‚ğ‚Ü‚Æ‚ß‚éƒ}ƒeƒŠƒAƒ‹ƒf[ƒ^
+// å…¨ä½“ã‚’ã¾ã¨ã‚ã‚‹ãƒãƒ†ãƒªã‚¢ãƒ«ãƒ‡ãƒ¼ã‚¿
 struct Material
 {
-	unsigned int indicesNum; // ƒCƒ“ƒfƒbƒNƒX”
+	unsigned int indicesNum; // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹æ•°
 	MaterialForHlsl material;
 	AdditionalMaterial additional;
 };
@@ -40,7 +40,7 @@ class PMDRenderer
 {
 private:
 	Dx12Wrapper& _dx12;
-	std::vector<PMDActor*> _actors;   // ”ñŠ—LBŠ—LÒ‚Í Application
+	std::vector<PMDActor*> _actors;   // éæ‰€æœ‰ã€‚æ‰€æœ‰è€…ã¯ Application
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState;
 public:

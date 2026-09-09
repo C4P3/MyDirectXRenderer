@@ -30,6 +30,10 @@ public:
 
     explicit Dx12ResourceAllocator(ID3D12Device* dev);
 
+    // グラフの外で作られたテクスチャを預かり、SRV を張って id を返す。
+    // 実体の所有は呼び出し側。ディスクリプタだけこちらのヒープに載せる。
+    uint32_t RegisterExternalTexture(ID3D12Resource* res);
+
     // グラフの外で作られた実体を預かり、id を発番する。
     // 実体が生きている限り id は有効なので、スワップチェーンのバッファは
     // 初期化時に全枚数を登録しておき、毎フレーム該当する id で Import すればよい。

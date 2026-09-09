@@ -106,7 +106,7 @@ bool Application::Init() {
 
 	// マルチパスレンダラー
 	_peraRenderer.reset(new PeraRenderer(*_dx12));
-	if (!_peraRenderer->Init()) return false; // パイプライン構築
+	if (!_peraRenderer->Init(*_allocator)) return false; // パイプライン構築
 
 	// PMD
 	_pmdRenderer.reset(new PMDRenderer(*_dx12));
@@ -168,6 +168,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	// requiredFinalState を持つリソースがカリングの根になるので、backbuffer にだけ指定する。
 	TextureHandle pera1 = graph.Create("pera1", colorDesc);
 	TextureHandle pera2 = graph.Create("pera2", colorDesc);
+	TextureHandle pera3 = graph.Create("pera3", colorDesc);
 	TextureHandle depth = graph.Create("depth", depthDesc);
 	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
@@ -184,12 +185,25 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			_gregoryRenderer->Draw(*_scene);
 		});
 
-	// --- 横ぼかし：1 枚目を読んで 2 枚目へ ---
+	// --- 歪み：1 枚目を読んで 2 枚目へ ---
+	struct EffectPass { TextureHandle src; };
+	graph.AddPass<EffectPass>("Distortion",
+		[&](rg::RenderGraph::Builder& b, EffectPass& d) {
+			d.src = b.SampledRead(pera1);
+			pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
+		},
+		[this](const EffectPass& d, rg::CommandContext& ctx) {
+			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			_peraRenderer->Draw(allocator.SrvHeap(),
+				allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::Distortion);
+		});
+
+	// --- 横ぼかし：2 枚目を読んで 3 枚目へ ---
 	struct BlurPass { TextureHandle src; };
 	graph.AddPass<BlurPass>("BlurH",
 		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
-			d.src = b.SampledRead(pera1);
-			pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
+			d.src = b.SampledRead(pera2);
+			pera3 = b.SetRenderAttachment(pera3, 0, LoadOp::Clear);
 		},
 		[this](const BlurPass& d, rg::CommandContext& ctx) {
 			// 読む先はパスの宣言（SampledRead）で決まっている。
@@ -201,10 +215,10 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			);
 		});
 
-	// --- 縦ぼかし：2 枚目を読んでバックバッファへ ---
+	// --- 縦ぼかし：3 枚目を読んでバックバッファへ ---
 	graph.AddPass<BlurPass>("BlurV",
 		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
-			d.src = b.SampledRead(pera2);
+			d.src = b.SampledRead(pera3);
 			bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);  // bb@v0 -> bb@v1
 		},
 		[this](const BlurPass& d, rg::CommandContext& ctx) {

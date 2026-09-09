@@ -6,12 +6,14 @@
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <DirectXMath.h>
+#include <DirectXTex.h>
 #include <d3dcompiler.h>
 
 #include "d3dx12.h"
 #include "PeraRenderer.h"
 #include "Dx12Wrapper.h"
 #include "Scene.h"
+#include "RenderGraph/Dx12ResourceAllocator.h"
 
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -65,7 +67,7 @@ struct PeraVertex
 };
 
 // 初期化：シェーダーコンパイル、ルートシグネチャ、PSOの作成を行う
-bool PeraRenderer::Init()
+bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 {
 	// dx12.Device() を使ってルートシグネチャやPSOを作成し、
 	// メンバ変数の _rootSignature と _pipelineState に格納
@@ -122,61 +124,36 @@ bool PeraRenderer::Init()
 	_bokehParamBuffer->Unmap(0, nullptr);
 
 
-	// ・シェーダーのコンパイル
-	ComPtr<ID3DBlob> _vsBlob = nullptr;
-	ComPtr<ID3DBlob> _psBlob = nullptr;
+	D3D12_DESCRIPTOR_RANGE ranges[2] = {};
+	// t0 : 前のパスの結果
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
+	ranges[0].BaseShaderRegister = 0;  // 0
+	ranges[0].NumDescriptors = 1;
+	// t1 : 法線マップ
+	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
+	ranges[1].BaseShaderRegister = 1;  // 1
+	ranges[1].NumDescriptors = 1;
 
-	// コンパイルとエラー出力を一括で扱うローカル関数
-	auto compileShader = [](const wchar_t* fileName, const char* entryPoint, const char* target, ComPtr<ID3DBlob>& outBlob) -> bool {
-		ComPtr<ID3DBlob> errorBlob = nullptr;
-
-		HRESULT hr = D3DCompileFromFile(
-			fileName,
-			nullptr,
-			D3D_COMPILE_STANDARD_FILE_INCLUDE,
-			entryPoint, target,
-			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
-			0,
-			&outBlob, &errorBlob
-		);
-
-		if (FAILED(hr)) {
-			if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
-				::OutputDebugStringA("ファイルが見当たりません\n");
-			}
-			else if (errorBlob) {
-				std::string errstr(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize());
-				errstr += "\n";
-				::OutputDebugStringA(errstr.c_str());
-			}
-			return false;
-		}
-		return true;
-		};
-
-	if (!compileShader(L"Shader/peraVertex.hlsl", "vs", "vs_5_0", _vsBlob)) return false;
-	if (!compileShader(L"Shader/peraPixel.hlsl", "ps", "ps_5_0", _psBlob)) return false;
-
-	D3D12_DESCRIPTOR_RANGE range = {};
-	range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
-	range.BaseShaderRegister = 0;  // 0
-	range.NumDescriptors = 1;
-
-	D3D12_ROOT_PARAMETER rp[2] = {};
+	D3D12_ROOT_PARAMETER rp[3] = {};
 	rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	rp[0].DescriptorTable.pDescriptorRanges = &range;
+	rp[0].DescriptorTable.pDescriptorRanges = &ranges[0];
 	rp[0].DescriptorTable.NumDescriptorRanges = 1;
 
 	rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;   // ヒープ不要
 	rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rp[1].Descriptor.ShaderRegister = 0;   // b0
 
+	rp[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rp[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rp[2].DescriptorTable.pDescriptorRanges = &ranges[1];
+	rp[2].DescriptorTable.NumDescriptorRanges = 1;
+
 	D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0); // s0
 
 	// ルートシグネチャ
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-	rootSignatureDesc.NumParameters = 2;
+	rootSignatureDesc.NumParameters = 3;
 	rootSignatureDesc.pParameters = rp;
 	rootSignatureDesc.NumStaticSamplers = 1;
 	rootSignatureDesc.pStaticSamplers = &sampler;
@@ -210,9 +187,6 @@ bool PeraRenderer::Init()
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
 	gpipeline.pRootSignature = _rootSignature.Get();
 
-	gpipeline.VS = CD3DX12_SHADER_BYTECODE(_vsBlob.Get());
-	gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
-
 	gpipeline.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	gpipeline.NumRenderTargets = 1;
@@ -238,6 +212,41 @@ bool PeraRenderer::Init()
 	gpipeline.InputLayout.pInputElementDescs = inputLayout; // レイアウト先頭アドレス
 	gpipeline.InputLayout.NumElements = _countof(inputLayout); // レイアウト配列の要素数
 
+	// ・シェーダーのコンパイル
+	ComPtr<ID3DBlob> _vsBlob = nullptr;
+	ComPtr<ID3DBlob> _psBlob = nullptr;
+
+	// コンパイルとエラー出力を一括で扱うローカル関数
+	auto compileShader = [](const wchar_t* fileName, const char* entryPoint, const char* target, ComPtr<ID3DBlob>& outBlob) -> bool {
+		ComPtr<ID3DBlob> errorBlob = nullptr;
+
+		HRESULT hr = D3DCompileFromFile(
+			fileName,
+			nullptr,
+			D3D_COMPILE_STANDARD_FILE_INCLUDE,
+			entryPoint, target,
+			D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION,
+			0,
+			&outBlob, &errorBlob
+		);
+
+		if (FAILED(hr)) {
+			if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+				::OutputDebugStringA("ファイルが見当たりません\n");
+			}
+			else if (errorBlob) {
+				std::string errstr(static_cast<const char*>(errorBlob->GetBufferPointer()), errorBlob->GetBufferSize());
+				errstr += "\n";
+				::OutputDebugStringA(errstr.c_str());
+			}
+			return false;
+		}
+		return true;
+		};
+
+	if (!compileShader(L"Shader/peraVertex.hlsl", "vs", "vs_5_0", _vsBlob)) return false;
+	gpipeline.VS = CD3DX12_SHADER_BYTECODE(_vsBlob.Get());
+
 	struct EffectShader { Effect effect; const wchar_t* file; const char* entry; };
 
 	static const EffectShader kEffectShaders[] = {
@@ -251,8 +260,23 @@ bool PeraRenderer::Init()
 		gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
 		result = _dx12.Device()->CreateGraphicsPipelineState(
 			&gpipeline, IID_PPV_ARGS(&_psos[static_cast<size_t>(s.effect)]));
-		assert(SUCCEEDED(result));
+		if (FAILED(result)) return false;
 	}
+
+	DirectX::TexMetadata metadata = {};
+	DirectX::ScratchImage scratchImg = {};
+	HRESULT hr = DirectX::LoadFromWICFile(
+		L"Texture/normalmap.jpg", DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
+	if (FAILED(hr)) return false;
+
+	auto img = scratchImg.GetImage(0, 0, 0);
+	_normalMap = _dx12.CreateTextureFromData(
+		metadata.width, metadata.height, metadata.format,
+		img->pixels, img->rowPitch, img->slicePitch);
+	if (!_normalMap) return false;
+
+	const uint32_t id = allocator.RegisterExternalTexture(_normalMap.Get());
+	_normalMapSrv = allocator.SrvOf(id);
 
 	return true;
 }
@@ -266,9 +290,10 @@ void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HAND
 	cmdList->SetPipelineState(_psos[static_cast<size_t>(effect)].Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
-	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // ヒープをセット
+	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // t0 も t1 もこの1本の中にある
 	cmdList->SetGraphicsRootDescriptorTable(0, srv);
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
+	cmdList->SetGraphicsRootDescriptorTable(2, _normalMapSrv);
 
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	cmdList->IASetVertexBuffers(0, 1, &_peraVBV);

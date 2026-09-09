@@ -98,6 +98,28 @@ Dx12ResourceAllocator::Dx12ResourceAllocator(ID3D12Device* dev) : _dev(dev) {
 
 // --- 外部所有リソースの登録 -------------------------------------------------
 
+uint32_t Dx12ResourceAllocator::RegisterExternalTexture(ID3D12Resource* res) {
+    assert(res != nullptr);
+    const auto resDesc = res->GetDesc();
+
+    Entry e;
+    e.ptr = res;
+    e.external = true;
+    e.alive = true;
+
+    e.srvSlot = _srv.Alloc();
+    e.srv = _srv.Gpu(e.srvSlot);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Format = resDesc.Format;  // ここは sRGB に変換しない
+    srvDesc.Texture2D.MipLevels = resDesc.MipLevels;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    _dev->CreateShaderResourceView(e.ptr, &srvDesc, _srv.Cpu(e.srvSlot));
+
+    return Add(e);
+}
+
 uint32_t Dx12ResourceAllocator::RegisterExternalRenderTarget(
     ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
     assert(res != nullptr);

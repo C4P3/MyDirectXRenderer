@@ -36,7 +36,7 @@ using Microsoft::WRL::ComPtr;
 bool GregoryActor::BuildMesh(int segments)
 {
 	_lattice = greg::makeCube();
-	_patchMesh = greg::roundLattice(_lattice, 1);
+	_patchMesh = greg::roundLattice(_lattice);
 
 	std::vector<GregoryVertex> verts;
 	for (auto& patch : _patchMesh.patches) {

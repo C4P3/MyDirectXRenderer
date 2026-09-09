@@ -5,6 +5,14 @@
 
 class Dx12Wrapper;
 
+enum class Effect : size_t
+{
+	BlurHorizontal,
+	BlurVertical,
+	Distortion,
+	Count
+};
+
 class PeraRenderer
 {
 private:
@@ -16,15 +24,12 @@ private:
 	
 
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psoHorizontal;
-	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psoVertical;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> _psos[static_cast<size_t>(Effect::Count)];
 public:
 	PeraRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	// 読むテクスチャは RenderGraph が解決して渡す（どの物理リソースかは
 	// パスの SampledRead 宣言で決まるので、ここで添字を知る必要はない）
-	void DrawHorizontal(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv);
-	void DrawVertical(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv);
 	bool Init();
 	void Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
-		ID3D12PipelineState* pso);
+		Effect effect);
 };

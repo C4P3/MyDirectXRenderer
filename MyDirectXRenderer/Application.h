@@ -10,6 +10,7 @@ class Scene;
 class GregoryRenderer;
 class GregoryActor;
 class PeraRenderer;
+class Dx12ResourceAllocator;
 
 class Application
 {
@@ -36,6 +37,7 @@ private:
     std::unique_ptr<GregoryActor> _gregoryActor;
     std::unique_ptr<PeraRenderer> _peraRenderer;
     std::unique_ptr<Scene> _scene;
+    std::unique_ptr<Dx12ResourceAllocator> _allocator;
 
     // 毎フレーム呼ぶ。パスとリソースの宣言だけを行い、GPU コマンドは積まない。
     // グラフの外に実体があるのはバックバッファだけなので、その physicalId を渡す。

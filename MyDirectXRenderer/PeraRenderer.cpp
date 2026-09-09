@@ -238,32 +238,32 @@ bool PeraRenderer::Init()
 	gpipeline.InputLayout.pInputElementDescs = inputLayout; // レイアウト先頭アドレス
 	gpipeline.InputLayout.NumElements = _countof(inputLayout); // レイアウト配列の要素数
 
-	// 1枚目用パイプライン生成
-	result = _dx12.Device()->CreateGraphicsPipelineState(
-		&gpipeline, IID_PPV_ARGS(&_psoHorizontal)
-	);
-	if (FAILED(result))return false;
+	struct EffectShader { Effect effect; const wchar_t* file; const char* entry; };
 
-	// 2枚目用ピクセルシェーダー
-	if (!compileShader(L"Shader/VerticalBokehPS.hlsl", "VerticalBokehPS", "ps_5_0", _psBlob)) return false;
-	gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
+	static const EffectShader kEffectShaders[] = {
+	{ Effect::BlurHorizontal, L"Shader/HorizontalBokehPS.hlsl", "HorizontalBokehPS" },
+	{ Effect::BlurVertical,   L"Shader/VerticalBokehPS.hlsl",   "VerticalBokehPS"   },
+	{ Effect::Distortion,     L"Shader/DistortionPS.hlsl",      "DistortionPS"      },
+	};
 
-	// 2枚目用パイプライン生成
-	result = _dx12.Device()->CreateGraphicsPipelineState(
-		&gpipeline, IID_PPV_ARGS(&_psoVertical)
-	);
-	if (FAILED(result))return false;
+	for (const auto& s : kEffectShaders) {
+		if (!compileShader(s.file, s.entry, "ps_5_0", _psBlob)) return false;
+		gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
+		result = _dx12.Device()->CreateGraphicsPipelineState(
+			&gpipeline, IID_PPV_ARGS(&_psos[static_cast<size_t>(s.effect)]));
+		assert(SUCCEEDED(result));
+	}
 
 	return true;
 }
 
 // 描画コマンドの積み込み
 void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
-	ID3D12PipelineState* pso)
+	Effect effect)
 {
 	auto cmdList = _dx12.CommandList();
 
-	cmdList->SetPipelineState(pso);
+	cmdList->SetPipelineState(_psos[static_cast<size_t>(effect)].Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
 	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // ヒープをセット
@@ -274,8 +274,3 @@ void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HAND
 	cmdList->IASetVertexBuffers(0, 1, &_peraVBV);
 	cmdList->DrawInstanced(4, 1, 0, 0);
 }
-
-void PeraRenderer::DrawHorizontal(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv)
-{ Draw(srvHeap, srv, _psoHorizontal.Get()); }
-void PeraRenderer::DrawVertical(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv)
-{ Draw(srvHeap, srv, _psoVertical.Get()); }

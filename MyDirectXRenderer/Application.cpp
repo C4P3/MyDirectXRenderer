@@ -76,6 +76,9 @@ bool Application::Init() {
 		return false;
 	}
 
+	// Dx12ResourceAllocator
+	_allocator.reset(new Dx12ResourceAllocator(_dx12->Device()));
+
 	// imgui
 	if (ImGui::CreateContext() == nullptr) {
 		assert(0);
@@ -192,8 +195,10 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			// 読む先はパスの宣言（SampledRead）で決まっている。
 			// ハンドル → physicalId → SRV とたどるだけで、添字は出てこない。
 			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-			_peraRenderer->DrawHorizontal(allocator.SrvHeap(),
-				allocator.SrvOf(ctx.PhysicalOf(d.src)));
+			_peraRenderer->Draw(allocator.SrvHeap(),
+				allocator.SrvOf(ctx.PhysicalOf(d.src)),
+				Effect::BlurHorizontal
+			);
 		});
 
 	// --- 縦ぼかし：2 枚目を読んでバックバッファへ ---
@@ -204,8 +209,10 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 		},
 		[this](const BlurPass& d, rg::CommandContext& ctx) {
 			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-			_peraRenderer->DrawVertical(allocator.SrvHeap(),
-				allocator.SrvOf(ctx.PhysicalOf(d.src)));
+			_peraRenderer->Draw(allocator.SrvHeap(),
+				allocator.SrvOf(ctx.PhysicalOf(d.src)),
+				Effect::BlurHorizontal
+			);
 		});
 
 	// --- ImGui：バックバッファに上書きする。bb@v1 -> bb@v2 で BlurV の後ろに並ぶ ---
@@ -227,15 +234,14 @@ void Application::Run()
 {
 	// 物理リソースの実体を知っているのはこのアロケータだけ。
 	// RenderGraph も TexturePool も physicalId しか持ち回らない。
-	Dx12ResourceAllocator allocator(_dx12->Device());
-	rg::TexturePool pool(allocator);
+	rg::TexturePool pool(*_allocator);
 	rg::RenderGraph graph;
 
 	// スワップチェーンのバッファは実体が枚数分あるので、全部登録して id を控えておく。
 	// 毎フレーム RegisterExternal すると id が増え続けてしまう。
 	std::vector<uint32_t> backbufferIds;
 	for (UINT i = 0; i < _dx12->BackBufferCount(); ++i) {
-		backbufferIds.push_back(allocator.RegisterExternalRenderTarget(
+		backbufferIds.push_back(_allocator->RegisterExternalRenderTarget(
 			_dx12->GetBackBuffer(i), _dx12->GetBackBufferRTV(i)));
 	}
 
@@ -267,7 +273,7 @@ void Application::Run()
 		assert(compiled && "RenderGraph::Compile failed");
 		(void)compiled;
 
-		Dx12CommandContext ctx(_dx12->CommandList(), allocator);
+		Dx12CommandContext ctx(_dx12->CommandList(), *_allocator);
 		graph.Execute(ctx);
 
 		_dx12->EndDraw();

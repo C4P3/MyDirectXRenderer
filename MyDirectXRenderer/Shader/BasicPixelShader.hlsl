@@ -2,6 +2,11 @@
 
 float4 BasicPS(Output input) : SV_TARGET
 {
+    if (input.instNo == 1)
+    {
+        return float4(0, 0, 0, 1);
+    }
+    
     // 平行光線ベクトル
     float3 light = normalize(float3(1, -1, 1));
     
@@ -22,7 +27,7 @@ float4 BasicPS(Output input) : SV_TARGET
     
     // テクスチャカラー
     float4 texColor = tex.Sample(smp, input.uv);
-    
+
     return max(
         toonDif     // 輝度（トゥーン）
         // diffuseB  // 輝度

@@ -39,6 +39,12 @@ void Scene::Update()
         XMLoadFloat3(&_eye), XMLoadFloat3(&_target), XMLoadFloat3(&_up));
     _mappedScene->proj = XMMatrixPerspectiveFovLH(_fovY, _aspect, _near, _far);
     _mappedScene->eye = _eye;
+
+    XMFLOAT4 planeVec(0, 1, 0, 0);
+    _mappedScene->shadow = XMMatrixShadow(
+        XMLoadFloat4(&planeVec),
+        -XMLoadFloat3(&_parallelLightVec)
+    );
 }
 
 void Scene::DrawDebugGui() {

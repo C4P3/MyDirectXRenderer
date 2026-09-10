@@ -154,6 +154,7 @@ bool ProcessMessages() {
 	return true; // メッセージを全部捌ききったので描画へ進む
 }
 
+
 // パスとリソースの宣言。ここには GPU コマンドを一切積まない。
 // ハンドルはフレーム限りの値（graph.Clear() で無効になる）なので、毎フレームここで作り直す。
 void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
@@ -174,9 +175,9 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	// 同じ名前と desc なら同じ物理リソースが返ってくるので確保は初回だけ。
 	// 外に実体があるのはバックバッファだけで、これは Import する。
 	// requiredFinalState を持つリソースがカリングの根になるので、backbuffer にだけ指定する。
-	TextureHandle pera1 = graph.Create("pera1", colorDesc);
+	/*TextureHandle pera1 = graph.Create("pera1", colorDesc);
 	TextureHandle pera2 = graph.Create("pera2", colorDesc);
-	TextureHandle pera3 = graph.Create("pera3", colorDesc);
+	TextureHandle pera3 = graph.Create("pera3", colorDesc);*/
 	TextureHandle depth = graph.Create("depth", depthDesc);
 	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
@@ -185,7 +186,8 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	struct ScenePass { TextureHandle color, depth; };
 	graph.AddPass<ScenePass>("3D",
 		[&](rg::RenderGraph::Builder& b, ScenePass& d) {
-			d.color = pera1 = b.SetRenderAttachment(pera1, 0, LoadOp::Clear);
+			d.color = bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);
+			//d.color = pera1 = b.SetRenderAttachment(pera1, 0, LoadOp::Clear);
 			d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
 		},
 		[this](const ScenePass&, rg::CommandContext&) {
@@ -193,49 +195,49 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			_gregoryRenderer->Draw(*_scene);
 		});
 
-	// --- 歪み：1 枚目を読んで 2 枚目へ ---
-	struct EffectPass { TextureHandle src; };
-	graph.AddPass<EffectPass>("Distortion",
-		[&](rg::RenderGraph::Builder& b, EffectPass& d) {
-			d.src = b.SampledRead(pera1);
-			pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
-		},
-		[this](const EffectPass& d, rg::CommandContext& ctx) {
-			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-			_peraRenderer->Draw(allocator.SrvHeap(),
-				allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::Distortion);
-		});
+	//// --- 歪み：1 枚目を読んで 2 枚目へ ---
+	//struct EffectPass { TextureHandle src; };
+	//graph.AddPass<EffectPass>("Distortion",
+	//	[&](rg::RenderGraph::Builder& b, EffectPass& d) {
+	//		d.src = b.SampledRead(pera1);
+	//		pera2 = b.SetRenderAttachment(pera2, 0, LoadOp::Clear);
+	//	},
+	//	[this](const EffectPass& d, rg::CommandContext& ctx) {
+	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+	//		_peraRenderer->Draw(allocator.SrvHeap(),
+	//			allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::Distortion);
+	//	});
 
-	// --- 横ぼかし：2 枚目を読んで 3 枚目へ ---
-	struct BlurPass { TextureHandle src; };
-	graph.AddPass<BlurPass>("BlurH",
-		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
-			d.src = b.SampledRead(pera2);
-			pera3 = b.SetRenderAttachment(pera3, 0, LoadOp::Clear);
-		},
-		[this](const BlurPass& d, rg::CommandContext& ctx) {
-			// 読む先はパスの宣言（SampledRead）で決まっている。
-			// ハンドル → physicalId → SRV とたどるだけで、添字は出てこない。
-			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-			_peraRenderer->Draw(allocator.SrvHeap(),
-				allocator.SrvOf(ctx.PhysicalOf(d.src)),
-				Effect::BlurHorizontal
-			);
-		});
+	//// --- 横ぼかし：2 枚目を読んで 3 枚目へ ---
+	//struct BlurPass { TextureHandle src; };
+	//graph.AddPass<BlurPass>("BlurH",
+	//	[&](rg::RenderGraph::Builder& b, BlurPass& d) {
+	//		d.src = b.SampledRead(pera2);
+	//		pera3 = b.SetRenderAttachment(pera3, 0, LoadOp::Clear);
+	//	},
+	//	[this](const BlurPass& d, rg::CommandContext& ctx) {
+	//		// 読む先はパスの宣言（SampledRead）で決まっている。
+	//		// ハンドル → physicalId → SRV とたどるだけで、添字は出てこない。
+	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+	//		_peraRenderer->Draw(allocator.SrvHeap(),
+	//			allocator.SrvOf(ctx.PhysicalOf(d.src)),
+	//			Effect::BlurHorizontal
+	//		);
+	//	});
 
-	// --- 縦ぼかし：3 枚目を読んでバックバッファへ ---
-	graph.AddPass<BlurPass>("BlurV",
-		[&](rg::RenderGraph::Builder& b, BlurPass& d) {
-			d.src = b.SampledRead(pera3);
-			bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);  // bb@v0 -> bb@v1
-		},
-		[this](const BlurPass& d, rg::CommandContext& ctx) {
-			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-			_peraRenderer->Draw(allocator.SrvHeap(),
-				allocator.SrvOf(ctx.PhysicalOf(d.src)),
-				Effect::BlurHorizontal
-			);
-		});
+	//// --- 縦ぼかし：3 枚目を読んでバックバッファへ ---
+	//graph.AddPass<BlurPass>("BlurV",
+	//	[&](rg::RenderGraph::Builder& b, BlurPass& d) {
+	//		d.src = b.SampledRead(pera3);
+	//		bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);  // bb@v0 -> bb@v1
+	//	},
+	//	[this](const BlurPass& d, rg::CommandContext& ctx) {
+	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+	//		_peraRenderer->Draw(allocator.SrvHeap(),
+	//			allocator.SrvOf(ctx.PhysicalOf(d.src)),
+	//			Effect::BlurHorizontal
+	//		);
+	//	});
 
 	// --- ImGui：バックバッファに上書きする。bb@v1 -> bb@v2 で BlurV の後ろに並ぶ ---
 	struct ImGuiPass { TextureHandle target; };

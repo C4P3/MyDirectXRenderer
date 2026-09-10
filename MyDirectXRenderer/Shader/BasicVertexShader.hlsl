@@ -4,20 +4,40 @@ Output BasicVS(
     float4 normal : NORMAL,
     float2 uv : TEXCOORD,
     min16uint2 boneno : BONE_NO,
-    min16uint weight : WEIGHT
+    min16uint weight : WEIGHT,
+    uint instNo : SV_InstanceID
 )
 {
-    Output output; // ピクセルシェーダーに渡す値
+    Output output;
     
-    float w = weight / 100.0f;
+    // 1. ボーンのウェイト計算
+    float w = weight / 100.0f; // CPU側で0〜100の整数で送っている前提
     matrix bm = bones[boneno[0]] * w + bones[boneno[1]] * (1 - w); // 線形補間
-    pos = mul(bm, pos); // 先にボーン変換
-    output.svpos = mul(mul(mul(proj, view), world), pos); // シェーダーでは列優先
-    output.pos = mul(world, pos);
-    normal.w = 0; // 平行移動成分を向こうにする
-    output.normal = mul(world, normal); // 法線にもワールド変換を行う
-    output.vnormal = mul(view, output.normal);
+    
+    // 2. ローカル空間でのボーン変換
+    pos = mul(bm, pos);
+    
+    normal.w = 0; // 平行移動成分を無効化（ボーン変換より先にやるのが正解）
+    normal = mul(bm, normal); // 法線もボーンの動きに追従させる
+    
+    // 3. ワールド変換
+    pos = mul(world, pos);
+    output.pos = pos;
+    
+    // 法線のワールド・ビュー変換（ブレンドで長さが変わるためnormalize）
+    output.normal = normalize(mul(world, normal));
+    output.vnormal = normalize(mul(view, output.normal));
+    
+    // 4. インスタンスごとのプロジェクション変換
+    if(instNo == 1)
+    {
+       pos = mul(shadow, pos);
+    }
+    output.svpos = mul(mul(proj, view), pos);
+    
     output.uv = uv;
     output.ray = normalize(pos.xyz - eye); // 視線ベクトル
+    output.instNo = instNo;
+    
 	return output;
 }

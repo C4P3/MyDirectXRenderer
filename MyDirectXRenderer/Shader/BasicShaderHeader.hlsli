@@ -7,6 +7,7 @@ struct Output
     float4 vnormal : NORMAL1;   // ビュー変換後の法線ベクトル
     float2 uv : TEXCOORD; // uv 値
     float3 ray : VECTOR; // ベクトル
+    uint instNo : SV_InstanceID; // 影か標準か
 };
 
 Texture2D<float4> tex : register(t0); // 0番スロットに設定されたテクスチャ
@@ -23,6 +24,7 @@ cbuffer SceneBuffer : register(b0)
 {
     matrix view;
     matrix proj;
+    matrix shadow;
     float3 eye;
 };
 

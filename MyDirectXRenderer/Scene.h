@@ -7,6 +7,7 @@ struct SceneData
 {
     DirectX::XMMATRIX view;
     DirectX::XMMATRIX proj;
+    DirectX::XMMATRIX shadow;
     DirectX::XMFLOAT3 eye;
 };
 
@@ -21,6 +22,7 @@ private:
     DirectX::XMFLOAT3 _eye{ 0, 15, -35 };
     DirectX::XMFLOAT3 _target{ 0, 10, 0 };
     DirectX::XMFLOAT3 _up{ 0, 1, 0 };
+    DirectX::XMFLOAT3 _parallelLightVec{ 1, -1, 1};
     float _aspect = 1.0f;
     float _fovY = DirectX::XM_PIDIV4;
     float _near = 1.0f;

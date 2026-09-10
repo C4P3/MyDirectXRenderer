@@ -1207,7 +1207,7 @@ void PMDActor::Draw() {
 	unsigned int idxOffset = 0;
 	for (auto& m : materials) {
 		cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);
-		cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
+		cmdList->DrawIndexedInstanced(m.indicesNum, 2, idxOffset, 0, 0);
 		// ヒープポインターとインデックスを次に進める
 		descHeapH.ptr += cbvsrvIncSize;
 		idxOffset += m.indicesNum;

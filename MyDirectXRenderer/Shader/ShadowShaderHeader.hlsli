@@ -19,6 +19,9 @@ float ShadowFactor(float4 tpos)
     lightDepthTex.GetDimensions(width, height);
     float2 texel = 1.0f / float2(width, height);
 
+    // GPUのサンプラー（LINEAR）に1回だけお願いする
+    // return lightDepthTex.SampleCmpLevelZero(shadowSmp, uv, depth);
+    
     // 3x3 の PCF。1 タップだと影の輪郭がシャドウマップの解像度どおりに階段状になる
     float sum = 0;
     [unroll]

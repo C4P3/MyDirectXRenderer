@@ -9,6 +9,7 @@
 #include <DirectXMath.h>   // ← XMFLOAT3 用
 #include <wrl/client.h>    // ← ComPtr をメンバに持つなら
 #include "PMDRenderer.h"
+#include "DescriptorHeap.h"
 
 class Dx12Wrapper;
 
@@ -108,7 +109,9 @@ private:
     Dx12Wrapper& _dx12;
 	D3D12_VERTEX_BUFFER_VIEW vbView = {};
 	D3D12_INDEX_BUFFER_VIEW ibView = {};
-	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _basicDescHeap = nullptr;
+	// マテリアル用ディスクリプタ（CBV 1 + SRV 4）× マテリアル数。
+	// 実体は Dx12Wrapper の共有ヒープで、ここは借りた区間の先頭だけ持つ。
+	DescriptorHeap::Range _materialSrvRange;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _vertBuff = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _idxBuff = nullptr;
 	Microsoft::WRL::ComPtr<ID3D12Resource> _transformBuff  = nullptr;
@@ -147,6 +150,8 @@ private:
 	// LookAt 行列によりボーン方向を解決
 	// @param ik 対象 IK オブジェクト
 	void SolveLookAt(const PMDIK& ik);
+
+	void BindGeometry();     // IA と b2 のセット。両パス共通
 public:
 	PMDActor(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	DirectX::XMMATRIX WorldMatrix() const { return _worldMatrix; }
@@ -154,7 +159,8 @@ public:
     bool Load(const char* filepath);
 	bool VMDMotionLoad(const char* filepath);
     void Update();
-    void Draw();
+    void Draw();			// 既存：マテリアル単位のループ
+	void DrawShadow();		// 影パス用：全インデックスを 1 回で
 
 	void PlayAnimation();
 };

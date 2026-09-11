@@ -17,6 +17,13 @@ void Dx12CommandContext::Transition(const std::string& name, uint32_t physicalId
 }
 
 void Dx12CommandContext::BeginPass(const std::string&, const rg::PassAttachments& att) {
+    // --- CBV_SRV_UAV ヒープはパスの頭で 1 回だけ張る ---
+    // 同時に 1 枚しかバインドできないので、マテリアルもオフスクリーンも同じ 1 枚に載せてある。
+    // パスの中で別のヒープに切り替える側（ImGui）は自分で張り直す。
+    if (ID3D12DescriptorHeap* srvHeap = _allocator.SrvHeap()) {
+        _cmdList->SetDescriptorHeaps(1, &srvHeap);
+    }
+
     // --- 書き込み先を並べる ---
     D3D12_CPU_DESCRIPTOR_HANDLE rtvs[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
     const UINT colorCount = static_cast<UINT>(att.colors.size());

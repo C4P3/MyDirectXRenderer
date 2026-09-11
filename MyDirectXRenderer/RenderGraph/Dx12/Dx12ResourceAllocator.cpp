@@ -25,6 +25,7 @@ namespace {
 DXGI_FORMAT ResourceFormat(rg::Format f) {
     switch (f) {
     case rg::Format::D32_Float:   return DXGI_FORMAT_D32_FLOAT;
+    case rg::Format::R32_TYPELESS: return DXGI_FORMAT_R32_TYPELESS;
     case rg::Format::RGBA8_UNorm:
     default:                      return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
@@ -32,11 +33,14 @@ DXGI_FORMAT ResourceFormat(rg::Format f) {
 
 // ビュー（RTV / SRV / DSV）のフォーマット。
 // 現状の Dx12Wrapper に合わせて、カラーは sRGB のビューを張る。
-DXGI_FORMAT ViewFormat(rg::Format f) {
+// R32_TYPELESS は用途によって具体的な型が変わる（DSV なら D32_FLOAT、SRV なら R32_FLOAT）。
+// TYPELESS のままではビューを作れないため、リソース自体のフォーマットとは別に決める必要がある。
+DXGI_FORMAT ViewFormat(rg::Format f, bool asShaderResource = false) {
     switch (f) {
-    case rg::Format::D32_Float:   return DXGI_FORMAT_D32_FLOAT;
+    case rg::Format::D32_Float:    return DXGI_FORMAT_D32_FLOAT;
+    case rg::Format::R32_TYPELESS: return asShaderResource ? DXGI_FORMAT_R32_FLOAT : DXGI_FORMAT_D32_FLOAT;
     case rg::Format::RGBA8_UNorm:
-    default:                      return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    default:                       return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     }
 }
 
@@ -62,11 +66,6 @@ D3D12_CPU_DESCRIPTOR_HANDLE Dx12ResourceAllocator::HeapAlloc::Cpu(UINT slot) con
     return h;
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE Dx12ResourceAllocator::HeapAlloc::Gpu(UINT slot) const {
-    auto h = heap->GetGPUDescriptorHandleForHeapStart();
-    h.ptr += static_cast<UINT64>(slot) * increment;
-    return h;
-}
 
 // --- 初期化 -----------------------------------------------------------------
 
@@ -88,12 +87,12 @@ void Dx12ResourceAllocator::CreateHeap(HeapAlloc& out, D3D12_DESCRIPTOR_HEAP_TYP
     out.next      = 0;
 }
 
-Dx12ResourceAllocator::Dx12ResourceAllocator(ID3D12Device* dev) : _dev(dev) {
+Dx12ResourceAllocator::Dx12ResourceAllocator(ID3D12Device* dev, DescriptorHeap& srvHeap)
+    : _dev(dev), _srvHeap(srvHeap) {
     assert(dev != nullptr);
-    CreateHeap(_rtv, D3D12_DESCRIPTOR_HEAP_TYPE_RTV,         kMaxRtv, false);
-    CreateHeap(_dsv, D3D12_DESCRIPTOR_HEAP_TYPE_DSV,         kMaxDsv, false);
-    CreateHeap(_srv, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, kMaxSrv, true);
-    _srvHeap = _srv.heap;
+    // RTV / DSV は shader-visible ではないので競合しない。ここで持つ。
+    CreateHeap(_rtv, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, kMaxRtv, false);
+    CreateHeap(_dsv, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, kMaxDsv, false);
 }
 
 // --- 外部所有リソースの登録 -------------------------------------------------
@@ -107,15 +106,15 @@ uint32_t Dx12ResourceAllocator::RegisterExternalTexture(ID3D12Resource* res) {
     e.external = true;
     e.alive = true;
 
-    e.srvSlot = _srv.Alloc();
-    e.srv = _srv.Gpu(e.srvSlot);
+    e.srvSlot = _srvHeap.Alloc().first;
+    e.srv = _srvHeap.Gpu(e.srvSlot);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Format = resDesc.Format;  // ここは sRGB に変換しない
     srvDesc.Texture2D.MipLevels = resDesc.MipLevels;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    _dev->CreateShaderResourceView(e.ptr, &srvDesc, _srv.Cpu(e.srvSlot));
+    _dev->CreateShaderResourceView(e.ptr, &srvDesc, _srvHeap.Cpu(e.srvSlot));
 
     return Add(e);
 }
@@ -172,11 +171,7 @@ uint32_t Dx12ResourceAllocator::Allocate(const std::string&, const rg::TextureDe
     const bool isDS  = (usageFlags & rg::Usage::DepthStencil) != 0;
     const bool isSRV = (usageFlags & rg::Usage::ShaderResource) != 0;
 
-    // 深度を SRV で読むには TYPELESS で作ってビューごとにフォーマットを変える必要がある。
-    // シャドウマップを入れるときに対応する。
-    assert(!(isDS && isSRV) && "深度を SRV で読むのは未対応");
-
-    auto resDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+    D3D12_RESOURCE_DESC resDesc = CD3DX12_RESOURCE_DESC::Tex2D(
         ResourceFormat(desc.format), desc.width, desc.height, 1, 1);
     if (isRT) resDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
     if (isDS) {
@@ -227,15 +222,15 @@ uint32_t Dx12ResourceAllocator::Allocate(const std::string&, const rg::TextureDe
         _dev->CreateDepthStencilView(e.ptr, &dsvDesc, e.dsv);
     }
     if (isSRV) {
-        e.srvSlot = _srv.Alloc();
-        e.srv     = _srv.Gpu(e.srvSlot);
+        e.srvSlot = _srvHeap.Alloc().first;
+        e.srv     = _srvHeap.Gpu(e.srvSlot);
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.ViewDimension           = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Format                  = ViewFormat(desc.format);
+        srvDesc.Format                  = ViewFormat(desc.format, /*asShaderResource=*/true);
         srvDesc.Texture2D.MipLevels     = 1;
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        _dev->CreateShaderResourceView(e.ptr, &srvDesc, _srv.Cpu(e.srvSlot));
+        _dev->CreateShaderResourceView(e.ptr, &srvDesc, _srvHeap.Cpu(e.srvSlot));
     }
 
     return Add(e);
@@ -247,7 +242,7 @@ void Dx12ResourceAllocator::Release(uint32_t physicalId) {
     Entry& e = _entries[physicalId];
     if (e.rtvSlot != kNoSlot) _rtv.Free(e.rtvSlot);
     if (e.dsvSlot != kNoSlot) _dsv.Free(e.dsvSlot);
-    if (e.srvSlot != kNoSlot) _srv.Free(e.srvSlot);
+    if (e.srvSlot != kNoSlot) _srvHeap.Free({ e.srvSlot, 1 });
 
     e = Entry{};
     _freeList.push_back(physicalId);

@@ -43,10 +43,12 @@ private:
 	std::vector<PMDActor*> _actors;   // 非所有。所有者は Application
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> _rootSignature;
 	Microsoft::WRL::ComPtr<ID3D12PipelineState> _pipelineState;
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> _shadowPipelineState;
 public:
 	PMDRenderer(Dx12Wrapper& dx12) : _dx12(dx12) {}
 	void AddActor(PMDActor* actor) { _actors.push_back(actor); }
 	bool Init();
 
-	void Draw(const Scene& scene);
+	void Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE shadowMapSrv);
+	void DrawShadow(const Scene& scene);
 };

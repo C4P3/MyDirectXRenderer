@@ -4,8 +4,7 @@ Output BasicVS(
     float4 normal : NORMAL,
     float2 uv : TEXCOORD,
     min16uint2 boneno : BONE_NO,
-    min16uint weight : WEIGHT,
-    uint instNo : SV_InstanceID
+    min16uint weight : WEIGHT
 )
 {
     Output output;
@@ -28,16 +27,15 @@ Output BasicVS(
     output.normal = normalize(mul(world, normal));
     output.vnormal = normalize(mul(view, output.normal));
     
-    // 4. インスタンスごとのプロジェクション変換
-    if(instNo == 1)
-    {
-       pos = mul(shadow, pos);
-    }
+    // 4. プロジェクション変換
     output.svpos = mul(mul(proj, view), pos);
+    
+    // 5. ライトから見たクリップ空間の座標。
+    //    ShadowVS がシャドウマップに焼いたのと同じ変換で、PS 側で比較する
+    output.tpos = mul(lightCamera, pos);
     
     output.uv = uv;
     output.ray = normalize(pos.xyz - eye); // 視線ベクトル
-    output.instNo = instNo;
     
 	return output;
 }

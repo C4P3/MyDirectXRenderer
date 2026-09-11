@@ -2,13 +2,8 @@
 
 float4 BasicPS(Output input) : SV_TARGET
 {
-    if (input.instNo == 1)
-    {
-        return float4(0, 0, 0, 1);
-    }
-    
-    // 平行光線ベクトル
-    float3 light = normalize(float3(1, -1, 1));
+    // 平行光線ベクトル。シャドウマップを焼いた向きと同じものが b0 で来る
+    float3 light = lightVec;
     
     // ライトのカラー
     float3 lightColor = float3(1, 1, 1);
@@ -28,7 +23,9 @@ float4 BasicPS(Output input) : SV_TARGET
     // テクスチャカラー
     float4 texColor = tex.Sample(smp, input.uv);
 
-    return max(
+    float shadowWeight = lerp(0.5f, 1.0f, ShadowFactor(input.tpos));
+
+    float4 color = max(
         toonDif     // 輝度（トゥーン）
         // diffuseB  // 輝度
         * diffuse   // ディフューズカラー
@@ -39,4 +36,6 @@ float4 BasicPS(Output input) : SV_TARGET
     ,
         float4((float3)texColor * ambient, 1)   // アンビエント
     );
+
+    return float4(color.rgb * shadowWeight, color.a);
 }

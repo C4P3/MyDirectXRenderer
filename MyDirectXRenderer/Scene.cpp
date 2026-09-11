@@ -40,11 +40,22 @@ void Scene::Update()
     _mappedScene->proj = XMMatrixPerspectiveFovLH(_fovY, _aspect, _near, _far);
     _mappedScene->eye = _eye;
 
-    XMFLOAT4 planeVec(0, 1, 0, 0);
-    _mappedScene->shadow = XMMatrixShadow(
-        XMLoadFloat4(&planeVec),
-        -XMLoadFloat3(&_parallelLightVec)
-    );
+    // ライトの向き。シェーダ側と食い違わないよう、正規化したものを b0 に載せる
+    XMVECTOR lightDir = XMVector3Normalize(XMLoadFloat3(&_parallelLightVec));
+    XMStoreFloat3(&_mappedScene->lightVec, lightDir);
+
+    // ライトカメラは「_shadowCenter を中心とする半径 _shadowRadius の球」に合わせる。
+    // カメラの位置とは無関係にしておかないと、視点を動かすたびに影の範囲が変わってしまう。
+    XMVECTOR center = XMLoadFloat3(&_shadowCenter);
+    XMVECTOR lightPos = center - lightDir * (_shadowRadius * 2.0f);
+
+    // ライトから見て球は距離 R〜3R に収まるので、near / far はその外側に取る
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, center, XMLoadFloat3(&_up));
+    XMMATRIX lightProj = XMMatrixOrthographicLH(
+        _shadowRadius * 2.0f, _shadowRadius * 2.0f,
+        _shadowRadius * 0.5f, _shadowRadius * 4.0f);
+
+    _mappedScene->lightCamera = lightView * lightProj;
 }
 
 void Scene::DrawDebugGui() {
@@ -53,5 +64,11 @@ void Scene::DrawDebugGui() {
         ImGui::DragFloat3("target", &_target.x, 0.1f);
         ImGui::SliderAngle("fovY", &_fovY, 10.0f, 120.0f);
         ImGui::DragFloatRange2("near/far", &_near, &_far, 0.1f, 0.01f, 1000.0f);
+    }
+    if (ImGui::CollapsingHeader("Light / Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::DragFloat3("light dir", &_parallelLightVec.x, 0.05f);
+        ImGui::DragFloat3("shadow center", &_shadowCenter.x, 0.5f);
+        // 小さくすると影は細かくなるが、範囲から出たものは影を落とさなくなる
+        ImGui::DragFloat("shadow radius", &_shadowRadius, 0.5f, 1.0f, 200.0f);
     }
 }

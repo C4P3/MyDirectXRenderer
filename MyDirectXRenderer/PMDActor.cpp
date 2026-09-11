@@ -1086,21 +1086,17 @@ bool PMDActor::Load(const char* filepath) {
 	matCBVDesc.BufferLocation = _materialBuff->GetGPUVirtualAddress(); // バッファーアドレス
 	matCBVDesc.SizeInBytes = materialBuffSize; // マテリアルの 256 アライメントサイズ
 
-	// ディスクリプタヒープに追加する
-	D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
-	descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	descHeapDesc.NodeMask = 0;
-	descHeapDesc.NumDescriptors = materialNum * MATERIAL_MULTIPLIER; // マテリアルと拡張テクスチャ数
-	descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-
-	result = _dx12.Device()->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&_basicDescHeap));
-	if (FAILED(result))
-		return DebugFail("PMDActor::Load", "マテリアル用ディスクリプタヒープの生成", result);
+	// 共有ヒープからマテリアル分の区間を借りる。
+	// ディスクリプタテーブルで参照するので連続していないといけない。
+	auto& srvHeap = _dx12.SrvHeap();
+	_materialSrvRange = srvHeap.Alloc(materialNum * MATERIAL_MULTIPLIER); // マテリアルと拡張テクスチャ数
+	if (!_materialSrvRange.Valid())
+		return DebugFail("PMDActor::Load", "マテリアル用ディスクリプタの確保");
 
 	// ディスクリプタの先頭ハンドルを取得しておく
-	auto basicHeapHandle = _basicDescHeap->GetCPUDescriptorHandleForHeapStart();
+	auto basicHeapHandle = srvHeap.Cpu(_materialSrvRange.first);
 
-	auto inc = _dx12.Device()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	auto inc = srvHeap.Increment();
 	_whiteTex = _dx12.CreateSolidColorTexture(0xff, 0xff, 0xff);
 	_blackTex = _dx12.CreateSolidColorTexture(0, 0, 0);
 
@@ -1184,30 +1180,40 @@ void PMDActor::Update() {
 	_worldMatrix = XMMatrixRotationY(angle);
 	_mappedTransform->world = _worldMatrix;
 };
-void PMDActor::Draw() {
-	// ========= 実際の描画 =========
+
+void PMDActor::BindGeometry() {
 	auto cmdList = _dx12.CommandList();
 
-	// ワールド行列（b2）をルートCBVで直接渡す
+	// ワールド行列とボーン行列（b2）をルート CBV で直接渡す
 	cmdList->SetGraphicsRootConstantBufferView(2, _transformBuff->GetGPUVirtualAddress());
 
-	// テクスチャCBV（ヒープ）のセット
-	ID3D12DescriptorHeap* ppHeaps[] = { _basicDescHeap.Get() };
-	cmdList->SetDescriptorHeaps(1, ppHeaps);
-	auto descHeapH = _basicDescHeap->GetGPUDescriptorHandleForHeapStart();
-
-	// ジオメトリのセットと描画
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	cmdList->IASetVertexBuffers(0, 1, &vbView);
 	cmdList->IASetIndexBuffer(&ibView);
+}
 
-	auto cbvsrvIncSize = _dx12.Device()->GetDescriptorHandleIncrementSize(
-		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV
-	) * MATERIAL_MULTIPLIER;
+void PMDActor::DrawShadow() {
+	BindGeometry();
+
+	// 影パスはマテリアルで分ける理由がないので、全インデックスをまとめて描く。
+	// インスタンスも 1 つでよい（平面影は影パスの仕事ではない）
+	const UINT indexCount = ibView.SizeInBytes / sizeof(unsigned short);
+	_dx12.CommandList()->DrawIndexedInstanced(indexCount, 1, 0, 0, 0);
+}
+
+void PMDActor::Draw() {
+	BindGeometry();
+	auto cmdList = _dx12.CommandList();
+
+	// ヒープのバインドはパスの頭（Dx12CommandContext::BeginPass）で済んでいる
+	auto& srvHeap = _dx12.SrvHeap();
+	auto descHeapH = srvHeap.Gpu(_materialSrvRange.first);
+
+	auto cbvsrvIncSize = srvHeap.Increment() * MATERIAL_MULTIPLIER;
 	unsigned int idxOffset = 0;
 	for (auto& m : materials) {
 		cmdList->SetGraphicsRootDescriptorTable(1, descHeapH);
-		cmdList->DrawIndexedInstanced(m.indicesNum, 2, idxOffset, 0, 0);
+		cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
 		// ヒープポインターとインデックスを次に進める
 		descHeapH.ptr += cbvsrvIncSize;
 		idxOffset += m.indicesNum;

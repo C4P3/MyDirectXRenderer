@@ -6,6 +6,8 @@
 #include <vector>
 #include <wrl/client.h> // ComPtr用
 
+#include "DescriptorHeap.h"
+
 class Dx12Wrapper
 {
 private:
@@ -19,6 +21,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _rtvDescHeap;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeapForImgui();
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _heapForImgui;
+
+    // CBV_SRV_UAV は同時に 1 枚しかバインドできないので、実体をここで持って
+    // Dx12ResourceAllocator と各 Actor に貸す。詳細は DescriptorHeap.h。
+    DescriptorHeap _srvHeap;
 
 
     // オフスクリーンと深度は RenderGraph（TexturePool）が持つ。ここはバックバッファだけ。
@@ -35,6 +41,8 @@ public:
     ID3D12Fence* Fence() const { return _fence.Get(); }
     UINT64& FenceVal() { return _fenceVal; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetHeapForImgui() const { return _heapForImgui; }
+    // マテリアルもオフスクリーンもここからスロットを借りる
+    DescriptorHeap& SrvHeap() { return _srvHeap; }
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> GetRTVHeap() const { return _rtvDescHeap; }
     ID3D12Resource* GetCurrentBackBuffer() const {
         return _backBuffers[_swapchain->GetCurrentBackBufferIndex()].Get();

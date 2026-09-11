@@ -2,13 +2,19 @@
 #include <d3d12.h>
 #include <DirectXMath.h>
 #include <wrl/client.h>
-// b0 に送るシーン共通データ。world は入れない
+// b0 に送るシーン共通データ。world は入れない。
+// シェーダ側の宣言は Shader/SceneShaderHeader.hlsli 1 箇所にまとめてある。
+// HLSL の float3 は 16 バイト境界をまたげないので、eye の後ろに 1 行分の隙間ができる。
+// _pad はその隙間を C++ 側でも同じように空けるためのもの
 struct SceneData
 {
     DirectX::XMMATRIX view;
     DirectX::XMMATRIX proj;
-    DirectX::XMMATRIX shadow;
+    DirectX::XMMATRIX lightCamera;
     DirectX::XMFLOAT3 eye;
+    float             _pad0 = 0.0f;
+    DirectX::XMFLOAT3 lightVec;   // 正規化済みの平行光線ベクトル
+    float             _pad1 = 0.0f;
 };
 
 class Dx12Wrapper;
@@ -23,6 +29,11 @@ private:
     DirectX::XMFLOAT3 _target{ 0, 10, 0 };
     DirectX::XMFLOAT3 _up{ 0, 1, 0 };
     DirectX::XMFLOAT3 _parallelLightVec{ 1, -1, 1};
+
+    // シャドウマップに収める範囲。この球がちょうど収まるようにライトを置く。
+    // カメラの位置から決めると、カメラを動かすたびに影の解像度と範囲が変わってしまう
+    DirectX::XMFLOAT3 _shadowCenter{ 0, 10, 0 };
+    float _shadowRadius = 20.0f;
     float _aspect = 1.0f;
     float _fovY = DirectX::XM_PIDIV4;
     float _near = 1.0f;

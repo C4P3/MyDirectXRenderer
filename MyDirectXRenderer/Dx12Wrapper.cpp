@@ -159,7 +159,10 @@ bool Dx12Wrapper::Init(HWND hwnd, int window_width, int window_height)
 	result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
 	if (FAILED(result)) return DebugFail("Dx12Wrapper::Init", "フェンスの生成", result);
 
-	// マルチパスレンダリング用
+	// CBV_SRV_UAV ヒープ。マテリアル・オフスクリーン・法線マップが全部ここに載る。
+	// shader-visible なヒープは後から伸ばせないので最初に多めに取っておく。
+	if (!_srvHeap.Init(_dev.Get(), 1024))
+		return DebugFail("Dx12Wrapper::Init", "CBV_SRV_UAV ヒープの生成");
 
 	// imgui用
 	_heapForImgui = CreateDescriptorHeapForImgui();

@@ -11,6 +11,7 @@ enum class Effect : size_t
 	BlurHorizontal,
 	BlurVertical,
 	Distortion,
+	DepthVisualize,
 	Count
 };
 
@@ -33,6 +34,5 @@ public:
 	// 読むテクスチャは RenderGraph が解決して渡す（どの物理リソースかは
 	// パスの SampledRead 宣言で決まるので、ここで添字を知る必要はない）
 	bool Init(Dx12ResourceAllocator& allocator);
-	void Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
-		Effect effect);
+	void Draw(D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect);
 };

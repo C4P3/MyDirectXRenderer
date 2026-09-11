@@ -15,18 +15,20 @@
 #include <vector>
 
 #include "../TexturePool.h"
+#include "../../DescriptorHeap.h"
 
 // rg::State を D3D12 の状態に翻訳する。バックエンド共通。
 D3D12_RESOURCE_STATES ToD3D12(rg::State s);
 
 class Dx12ResourceAllocator : public rg::IResourceAllocator {
 public:
-    // ディスクリプタヒープの容量。足りなくなったら assert で気付く。
+    // RTV / DSV の容量。足りなくなったら assert で気付く。
+    // SRV はここでは持たない（shader-visible なヒープは 1 枚しかバインドできないので、
+    // 実体は Dx12Wrapper が持っていて、ここはスロットを借りるだけ）。
     static constexpr UINT kMaxRtv = 16;
     static constexpr UINT kMaxDsv = 8;
-    static constexpr UINT kMaxSrv = 32;
 
-    explicit Dx12ResourceAllocator(ID3D12Device* dev);
+    Dx12ResourceAllocator(ID3D12Device* dev, DescriptorHeap& srvHeap);
 
     // グラフの外で作られたテクスチャを預かり、SRV を張って id を返す。
     // 実体の所有は呼び出し側。ディスクリプタだけこちらのヒープに載せる。
@@ -43,9 +45,9 @@ public:
     D3D12_CPU_DESCRIPTOR_HANDLE DsvOf(uint32_t physicalId) const;
 
     // SampledRead したリソースをシェーダに渡すための GPU ハンドル。
-    // 使う前に SrvHeap() を SetDescriptorHeaps すること。
+    // ヒープのバインドは Dx12CommandContext::BeginPass() がパスの頭で済ませている。
     D3D12_GPU_DESCRIPTOR_HANDLE SrvOf(uint32_t physicalId) const;
-    ID3D12DescriptorHeap*       SrvHeap() const { return _srvHeap.Get(); }
+    ID3D12DescriptorHeap*       SrvHeap() const { return _srvHeap.Raw(); }
 
     // --- rg::IResourceAllocator ---
     uint32_t Allocate(const std::string& name, const rg::TextureDesc& desc,
@@ -81,7 +83,6 @@ private:
         UINT Alloc();
         void Free(UINT slot);
         D3D12_CPU_DESCRIPTOR_HANDLE Cpu(UINT slot) const;
-        D3D12_GPU_DESCRIPTOR_HANDLE Gpu(UINT slot) const;
     };
 
     uint32_t Add(const Entry& e);
@@ -94,7 +95,6 @@ private:
 
     HeapAlloc _rtv;
     HeapAlloc _dsv;
-    HeapAlloc _srv;
-    // SrvHeap() で返す用（HeapAlloc の中身と同じもの）
-    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> _srvHeap;
+    // SRV は共有ヒープから借りる。所有は Dx12Wrapper。
+    DescriptorHeap& _srvHeap;
 };

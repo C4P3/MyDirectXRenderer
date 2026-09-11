@@ -261,6 +261,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	{ Effect::BlurHorizontal, L"Shader/HorizontalBokehPS.hlsl", "HorizontalBokehPS" },
 	{ Effect::BlurVertical,   L"Shader/VerticalBokehPS.hlsl",   "VerticalBokehPS"   },
 	{ Effect::Distortion,     L"Shader/DistortionPS.hlsl",      "DistortionPS"      },
+	{ Effect::DepthVisualize, L"Shader/DepthVisualizePS.hlsl",  "DepthVisualizePS"  }
 	};
 
 	for (const auto& s : kEffectShaders) {
@@ -294,15 +295,14 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 }
 
 // 描画コマンドの積み込み
-void PeraRenderer::Draw(ID3D12DescriptorHeap* srvHeap, D3D12_GPU_DESCRIPTOR_HANDLE srv,
-	Effect effect)
+void PeraRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect)
 {
 	auto cmdList = _dx12.CommandList();
 
 	cmdList->SetPipelineState(_psos[static_cast<size_t>(effect)].Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
-	cmdList->SetDescriptorHeaps(1, &srvHeap);                     // t0 も t1 もこの1本の中にある
+	// t0 も t1 も共有ヒープの中にある。バインドはパスの頭で済んでいる。
 	cmdList->SetGraphicsRootDescriptorTable(0, srv);
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 	cmdList->SetGraphicsRootDescriptorTable(2, _normalMapSrv);

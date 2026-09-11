@@ -46,6 +46,15 @@
 - ガウシアンウェイトは CPU 側で 8 個（σ = 3.0）計算し、`float4[2]` の定数バッファ（`b0`）で渡す。頂点シェーダとルートシグネチャは共通にして、ピクセルシェーダだけ違う PSO を 2 つ作って切り替えている
 - `peraPixel.hlsl` には他に試したポストエフェクト（モノクロ・色反転・減色・ディザ・エンボス・シャープネス・輪郭線抽出・重み固定のガウシアン）がコメントで残っている
 
+### シャドウマップ
+
+- ライトから見た深度だけを 1024×1024 に焼くパスを RenderGraph の先頭に置いている。カラーアタッチメント無し・ピクセルシェーダー無しの PSO で、ビューポートは書き込み先のサイズから導出されるのでパス側は何もしない
+- 深度を SRV で読むため `R32_TYPELESS` で確保し、ビューのフォーマットを用途ごとに変える（DSV なら `D32_FLOAT`、SRV なら `R32_FLOAT`）
+- ライトカメラは `Scene` が持つ「`_shadowCenter` を中心とする半径 `_shadowRadius` の球」に合わせて組む。カメラの位置とは無関係にしてあるので、視点を動かしても影の範囲と解像度が変わらない
+- 影の判定は比較サンプラー（`SamplerComparisonState` + `SampleCmpLevelZero`）。アドレスモードは BORDER で境界色が白（深度 1.0）なので、シャドウマップの外に落ちた点は影にならない。**3×3 の PCF** で輪郭をぼかしている
+- キャスターは PMD と Gregory、レシーバーは PMD / Gregory / 地面。シャドウマップの参照（`t4` / `s2`）と PCF は `ShadowShaderHeader.hlsli` にまとめて 3 つのシェーダで共有している
+- `b0` の宣言も `SceneShaderHeader.hlsli` 1 箇所にまとめた。ライト方向も `b0` 経由で渡すので、シャドウマップを焼いた向きとライティングの向きが食い違わない
+
 ### RenderGraph
 
 パスの並びとリソースの状態遷移をデータから解決する仕組み。`MyDirectXRenderer/RenderGraph/` にある。
@@ -78,10 +87,12 @@
 | `Dx12Wrapper` | デバイス・スワップチェーン・バックバッファと RTV・コマンドリスト・フェンス、`EndDraw()`、バッファとテクスチャの生成 |
 | `RenderGraph` | パスとリソースの宣言を受け取り、実行順・カリング・ライフタイム・バリアを導出する論理層（D3D12 非依存）|
 | `TexturePool` | フレームを越えて物理リソースを持ち回すプール。メモリ予算の関門でもある |
+| `DescriptorHeap` | shader-visible な CBV_SRV_UAV ヒープ 1 枚と、そこからの連続スロット割り当て。所有は `Dx12Wrapper` |
 | `Dx12CommandContext` / `Dx12ResourceAllocator` | RenderGraph の DX12 バックエンド。バリアの発行、リソース生成、ディスクリプタ管理 |
 | `Scene` | ビュー行列・プロジェクション行列と視点位置を持つ定数バッファ（`b0`）。ImGui でのカメラ操作もここ |
 | `PMDRenderer` / `PMDActor` | 前者がルートシグネチャと PSO、後者が頂点/インデックス/ワールド行列/マテリアルとディスクリプタヒープ。Actor 側がボーン階層・VMD モーション・IK ソルバも持つ |
 | `GregoryRenderer` / `GregoryActor` | 同じ構造の Gregory 用。Actor がラティスメッシュとパッチ列も保持する |
+| `GroundRenderer` | 原点に置いた水平な板。影を受けるためだけのもので、Actor は持たない |
 | `PeraRenderer` | 画面全体を覆うペラポリゴンの頂点バッファ、ぼかしウェイトの定数バッファ、横/縦ぼかし用の PSO（`DrawHorizontal()` / `DrawVertical()`）。読むテクスチャは RenderGraph が解決して渡す |
 | `Gregory/core` | ラティスメッシュのラウンディングと Gregory パッチの評価（描画に依存しない純粋な形状処理） |
 
@@ -95,7 +106,7 @@ Renderer は Actor を非所有ポインタで保持し、所有者は `Applicat
    デバイス管理・フレーム制御・リソース生成が 1 クラスに同居していた。レンダーターゲットまわり（オフスクリーン・深度・そのディスクリプタ・パスの切り替え）は RenderGraph 側へ出たので、今残っているのはデバイスとスワップチェーン、フレーム制御、それと Actor が使う `CreateBuffer()` / `CreateTextureFromData()` 系。後者をどこへ置くかは 4 と同じ話。
 
 2. **モデル種別ごとに Renderer を分ける設計が持つのか**
-   今は `PMDRenderer` / `GregoryRenderer` が各々ルートシグネチャと PSO を丸ごと持っている。種類が増えたときの共通化の置き場所が決まっていない。「パス × モデル種別」の 2 軸のうち、**パス側は RenderGraph で解決した**（実行順もバリアも宣言から決まり、パスの並びは `Application::BuildGraph()` にデータとして置いてある）。残っているのはモデル種別側で、シャドウマップを入れると「同じモデルを別のパスで別の PSO で描く」が出てくるので、そこが次の分岐点。
+   今は `PMDRenderer` / `GregoryRenderer` が各々ルートシグネチャと PSO を丸ごと持っている。種類が増えたときの共通化の置き場所が決まっていない。「パス × モデル種別」の 2 軸のうち、**パス側は RenderGraph で解決した**（実行順もバリアも宣言から決まり、パスの並びは `Application::BuildGraph()` にデータとして置いてある）。残っているのはモデル種別側。シャドウマップで「同じモデルを別のパスで別の PSO で描く」が実際に出てきたが、今は `PMDRenderer` / `GregoryRenderer` がそれぞれ `_shadowPipelineState` を持ち、`DrawShadow()` を生やす形で通している。種類が増えたときにこの重複をどう畳むかは未解決。
 
 3. **`Update()` / `Draw()` の責務分割**
    現在は `Application::Run()` が `Scene` と各 Actor の `Update()` を直接呼び、パス切り替えと Renderer の `Draw()` を順に並べている。アニメーションと IK を入れた結果 `PMDActor` にローダー・モーション再生・IK ソルバ・描画が同居して肥大化してきたので、どこで分けるか。方向としては 2 つ考えている。
@@ -107,6 +118,7 @@ Renderer は Actor を非所有ポインタで保持し、所有者は `Applicat
 
 4. **リソース生成の所在**（半分解決）
    レンダーターゲット系は `TexturePool` + `Dx12ResourceAllocator` に集約され、生成経路は一箇所になった。GPU メモリ上限もここに置ける。
+   ディスクリプタについても、CBV_SRV_UAV は同時に 1 枚しかバインドできない都合で `DescriptorHeap` に集約した。所有は `Dx12Wrapper` で、`Dx12ResourceAllocator` も各 Actor も参照で借りるだけ。RenderGraph 側に置くと Actor がバックエンドに依存してしまうので、意図的に外に出してある。バインドは `Dx12CommandContext::BeginPass()` がパスの頭で 1 回だけ行う。
    一方で各 Actor は今も `Dx12Wrapper&` を持って自分で頂点・インデックス・定数バッファを作っている。こちらは UPLOAD ヒープで状態遷移が起きず、寿命もフレームを跨ぐので RenderGraph の管理対象にはならない。ただし**メモリ予算は同じ財布で数える必要がある**はずで、予算カウンタをプールの外に出して両方の経路から叩く形になりそう。
 
 ## ロードマップ
@@ -118,8 +130,8 @@ Renderer は Actor を非所有ポインタで保持し、所有者は `Applicat
 - ~~ボーンアニメーション（VMD モーション再生）~~ → 実装済み（ベジェ補間まで）
 - ~~IK~~ → 実装済み（LookAt / 余弦定理 / CCD-IK、VMD の IK オンオフ対応）
 - ~~マルチパスレンダリング~~ → 実装済み（オフスクリーン 2 枚とガウシアンぼかし）。その後 RenderGraph に載せ替えた
-- シャドウマップ → 次はここ。深度を SRV で読むために TYPELESS 対応が要る
-- Effekseer によるエフェクト追加
+- ~~シャドウマップ~~ → 実装済み（TYPELESS 対応、比較サンプラー、3×3 PCF、影を受ける地面まで）
+- Effekseer によるエフェクト追加 → 次はここ
 
 ### B. ラティスメッシュと大規模データのための関心（未着手）
 

@@ -82,7 +82,14 @@ bool GregoryRenderer::Init()
 	if (!compileShader(L"Shader/GregoryPixelShader.hlsl", "GregoryPS", "ps_5_0", _psBlob))
 		return DebugFail("GregoryRenderer::Init", "GregoryPixelShader.hlsl のコンパイル");
 
-	D3D12_ROOT_PARAMETER rootparam[2] = {};
+	// t4 シャドウマップ。レジスタ番号は ShadowShaderHeader.hlsli に合わせる
+	D3D12_DESCRIPTOR_RANGE shadowRange = {};
+	shadowRange.NumDescriptors = 1;
+	shadowRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	shadowRange.BaseShaderRegister = 4;
+	shadowRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+	D3D12_ROOT_PARAMETER rootparam[3] = {};
 	// [0] b0 シーン ＝ ルートCBV
 	rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	rootparam[0].Descriptor.ShaderRegister = 0;
@@ -93,16 +100,36 @@ bool GregoryRenderer::Init()
 	rootparam[1].Descriptor.ShaderRegister = 2;
 	rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+	// [2] t4 シャドウマップ ＝ テーブル
+	rootparam[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootparam[2].DescriptorTable.pDescriptorRanges = &shadowRange;
+	rootparam[2].DescriptorTable.NumDescriptorRanges = 1;
+	rootparam[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	// s2 の比較サンプラー
+	D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
+	samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+	samplerDesc.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	samplerDesc.MaxAnisotropy = 1;
+	samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+	samplerDesc.MinLOD = 0.0f;
+	samplerDesc.ShaderRegister = 2;
+	samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
 
 	// ルートシグネチャ
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 
 	rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 	rootSignatureDesc.pParameters = rootparam;
-	rootSignatureDesc.NumParameters = 2;
+	rootSignatureDesc.NumParameters = _countof(rootparam);
 
-	rootSignatureDesc.pStaticSamplers = nullptr;
-	rootSignatureDesc.NumStaticSamplers = 0;
+	rootSignatureDesc.pStaticSamplers = &samplerDesc;
+	rootSignatureDesc.NumStaticSamplers = 1;
 
 	ComPtr<ID3DBlob> rootSigBlob = nullptr;
 	ComPtr<ID3DBlob> errorBlob = nullptr;
@@ -202,11 +229,31 @@ bool GregoryRenderer::Init()
 	if (FAILED(result))
 		return DebugFail("GregoryRenderer::Init", "PSO の生成", result);
 
+
+	// --- 影用 PSO：ルートシグネチャも入力レイアウトも同じ。VS を差し替えて RT を外すだけ ---
+	ComPtr<ID3DBlob> shadowVsBlob = nullptr;
+	if (!compileShader(L"Shader/GregoryShadowVS.hlsl", "GregoryShadowVS", "vs_5_0", shadowVsBlob))
+		return DebugFail("GregoryRenderer::Init", "GregoryShadowVS.hlsl のコンパイル");
+
+	gpipeline.VS.pShaderBytecode = shadowVsBlob->GetBufferPointer();
+	gpipeline.VS.BytecodeLength = shadowVsBlob->GetBufferSize();
+
+	// ピクセルシェーダー無し。深度しか書かないのでカラーも 0 枚
+	gpipeline.PS.pShaderBytecode = nullptr;
+	gpipeline.PS.BytecodeLength = 0;
+	gpipeline.NumRenderTargets = 0;
+	gpipeline.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;   // NumRenderTargets = 0 なら UNKNOWN 必須
+
+	result = _dx12.Device()->CreateGraphicsPipelineState(
+		&gpipeline, IID_PPV_ARGS(&_shadowPipelineState));
+	if (FAILED(result))
+		return DebugFail("GregoryRenderer::Init", "影用 PSO の生成", result);
+
 	return true;
 }
 
 // 描画コマンドの積み込み
-void GregoryRenderer::Draw(const Scene& scene)
+void GregoryRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE shadowMapSrv)
 {
 	auto cmdList = _dx12.CommandList();
 
@@ -216,5 +263,21 @@ void GregoryRenderer::Draw(const Scene& scene)
 
 	cmdList->SetGraphicsRootConstantBufferView(0, scene.SceneCBAddress());
 
+	// ヒープのバインドはパスの頭（Dx12CommandContext::BeginPass）で済んでいる
+	cmdList->SetGraphicsRootDescriptorTable(2, shadowMapSrv);
+
+	for (auto& actor : _actors) actor->Draw();
+}
+
+void GregoryRenderer::DrawShadow(const Scene& scene)
+{
+	auto cmdList = _dx12.CommandList();
+
+	cmdList->SetPipelineState(_shadowPipelineState.Get());
+	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+	cmdList->SetGraphicsRootConstantBufferView(0, scene.SceneCBAddress());
+
+	// PMD と違ってマテリアルで分けていないので、影パスも通常パスと同じ描画でよい。
+	// PSO だけ差し替わっているので、出るのはライトから見た深度だけ
 	for (auto& actor : _actors) actor->Draw();
 }

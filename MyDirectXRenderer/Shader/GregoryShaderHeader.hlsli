@@ -1,9 +1,5 @@
-cbuffer SceneBuffer : register(b0)
-{
-    matrix view;
-    matrix proj;
-    float3 eye;
-};
+#include "SceneShaderHeader.hlsli"
+#include "ShadowShaderHeader.hlsli"
 
 cbuffer Transform : register(b2)
 {
@@ -14,4 +10,5 @@ struct Output
 {
     float4 svpos : SV_POSITION;
     float3 normal : NORMAL;
+    float4 tpos : TPOS; // ライトから見たクリップ空間の座標
 };

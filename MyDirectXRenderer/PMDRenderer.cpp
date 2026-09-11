@@ -86,7 +86,7 @@ bool PMDRenderer::Init()
 
 		// ルートシグネチャの作成
 		// ディスクリプタレンジ
-		D3D12_DESCRIPTOR_RANGE descTblRange[2] = {};
+		D3D12_DESCRIPTOR_RANGE descTblRange[3] = {};
 		// [0] b1 マテリアル
 		descTblRange[0].NumDescriptors = 1; // ディスクリプタヒープは複数だが一度に使うのは1つ
 		descTblRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV; // 種別は定数
@@ -99,8 +99,16 @@ bool PMDRenderer::Init()
 		descTblRange[1].BaseShaderRegister = 0; // 0番スロットから
 		descTblRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
+		// [2] t4 シャドウマップ
+		// マテリアルと違ってモデル 1 体につき 1 つなので、テーブルを分けて別のルートパラメータにする。
+		// 実体は RenderGraph が確保したものを毎フレーム渡してもらう。
+		descTblRange[2].NumDescriptors = 1;
+		descTblRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		descTblRange[2].BaseShaderRegister = 4; // t4
+		descTblRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		D3D12_ROOT_PARAMETER rootparam[3] = {};
+
+		D3D12_ROOT_PARAMETER rootparam[4] = {};
 		// [0] b0 シーン ＝ ルートCBV（テーブルではない）
 		rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		rootparam[0].Descriptor.ShaderRegister = 0;
@@ -119,16 +127,22 @@ bool PMDRenderer::Init()
 		rootparam[2].Descriptor.RegisterSpace = 0;
 		rootparam[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+		// [3] t4 シャドウマップ ＝ テーブル
+		rootparam[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		rootparam[3].DescriptorTable.pDescriptorRanges = &descTblRange[2];
+		rootparam[3].DescriptorTable.NumDescriptorRanges = 1;
+		rootparam[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
 
 		// ルートシグネチャ
 		D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
 
 		rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 		rootSignatureDesc.pParameters = rootparam;
-		rootSignatureDesc.NumParameters = 3;
+		rootSignatureDesc.NumParameters = 4;
 
 		//サンプラーの設定
-		D3D12_STATIC_SAMPLER_DESC samplerDesc[2] = {};
+		D3D12_STATIC_SAMPLER_DESC samplerDesc[3] = {};
 		samplerDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP; // 繰り返しあり
 		samplerDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 		samplerDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -146,9 +160,22 @@ bool PMDRenderer::Init()
 		samplerDesc[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 		samplerDesc[1].ShaderRegister = 1;
 
+		// シャドウマップ用の比較サンプラー。
+		// SampleCmpLevelZero() に渡した深度と読んだ深度を ComparisonFunc で比較して 0/1 を返す。
+		// 範囲外は境界色（白 = 深度 1.0）になるので、シャドウマップの外は影にならない。
+		samplerDesc[2] = samplerDesc[0];
+		samplerDesc[2].AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		samplerDesc[2].AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		samplerDesc[2].AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		samplerDesc[2].BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+		samplerDesc[2].Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+		samplerDesc[2].ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+		samplerDesc[2].MaxAnisotropy = 1;
+		samplerDesc[2].ShaderRegister = 2;
+
 
 		rootSignatureDesc.pStaticSamplers = samplerDesc;
-		rootSignatureDesc.NumStaticSamplers = 2;
+		rootSignatureDesc.NumStaticSamplers = 3;
 
 		ComPtr<ID3DBlob> rootSigBlob = nullptr;
 		ComPtr<ID3DBlob> errorBlob = nullptr;
@@ -265,14 +292,35 @@ bool PMDRenderer::Init()
 
 
 		result = _dx12.Device()->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelineState));
+		if (FAILED(result)) return DebugFail("PMDRenderer::Init", "PSO の生成", result);
+
+
+		// --- 影用 PSO：ルートシグネチャも入力レイアウトも同じ。VS を差し替えて RT を外すだけ ---
+		ComPtr<ID3DBlob> _shadowVsBlob = nullptr;
+		if (!compileShader(L"Shader/ShadowVS.hlsl", "ShadowVS", "vs_5_0", _shadowVsBlob))
+			return DebugFail("PMDRenderer::Init", "ShadowVS.hlsl のコンパイル");
+
+		gpipeline.VS.pShaderBytecode = _shadowVsBlob->GetBufferPointer();
+		gpipeline.VS.BytecodeLength = _shadowVsBlob->GetBufferSize();
+
+		// ピクセルシェーダー無し。深度しか書かないのでカラーも 0 枚
+		gpipeline.PS.pShaderBytecode = nullptr;
+		gpipeline.PS.BytecodeLength = 0;
+		gpipeline.NumRenderTargets = 0;
+		gpipeline.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;   // NumRenderTargets = 0 なら UNKNOWN 必須
+		// DSVFormat は D32_FLOAT のまま（シャドウマップの DSV も ViewFormat() が D32_FLOAT を返す）
+
+		result = _dx12.Device()->CreateGraphicsPipelineState(
+			&gpipeline, IID_PPV_ARGS(&_shadowPipelineState));
 		if (FAILED(result))
-			return DebugFail("PMDRenderer::Init", "PSO の生成", result);
+			return DebugFail("PMDRenderer::Init", "影用 PSO の生成", result);
+
 
 		return true;
 	}
 
 // 描画コマンドの積み込み
-void PMDRenderer::Draw(const Scene& scene)
+void PMDRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE shadowMapSrv)
 {
 	auto cmdList = _dx12.CommandList();
 
@@ -282,5 +330,20 @@ void PMDRenderer::Draw(const Scene& scene)
 
 	cmdList->SetGraphicsRootConstantBufferView(0, scene.SceneCBAddress());
 
+	// どの物理リソースかはパスの SampledRead 宣言で決まっている。
+	// ヒープのバインドはパスの頭（Dx12CommandContext::BeginPass）で済んでいる。
+	cmdList->SetGraphicsRootDescriptorTable(3, shadowMapSrv);
+
 	for (auto& actor : _actors) actor->Draw();
+}
+
+void PMDRenderer::DrawShadow(const Scene& scene)
+{
+	auto cmdList = _dx12.CommandList();
+
+	cmdList->SetPipelineState(_shadowPipelineState.Get());
+	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
+	cmdList->SetGraphicsRootConstantBufferView(0, scene.SceneCBAddress());
+
+	for (auto& actor : _actors) actor->DrawShadow();
 }

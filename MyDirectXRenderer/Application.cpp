@@ -10,6 +10,7 @@
 #include "GregoryRenderer.h"
 #include "GregoryActor.h"
 #include "PeraRenderer.h"
+#include "GroundRenderer.h"
 #include "Scene.h"
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
@@ -78,7 +79,7 @@ bool Application::Init() {
 	}
 
 	// Dx12ResourceAllocator
-	_allocator.reset(new Dx12ResourceAllocator(_dx12->Device()));
+	_allocator.reset(new Dx12ResourceAllocator(_dx12->Device(), _dx12->SrvHeap()));
 
 	// imgui
 	if (ImGui::CreateContext() == nullptr) {
@@ -128,6 +129,11 @@ bool Application::Init() {
 	if (_pmdActor) _pmdActor->VMDMotionLoad("Motion/squat.vmd");
 
 
+	// 影を受ける地面
+	_groundRenderer.reset(new GroundRenderer(*_dx12));
+	if (!_groundRenderer->Init())
+		return DebugFail("Application::Init", "GroundRenderer::Init");
+
 	// gregory
 	_gregoryRenderer.reset(new GregoryRenderer(*_dx12));
 	if (!_gregoryRenderer->Init())
@@ -166,10 +172,13 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	const rg::TextureDesc colorDesc{ window_width, window_height,
 		rg::Format::RGBA8_UNorm, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
 	const rg::TextureDesc depthDesc{ window_width, window_height,
-		rg::Format::D32_Float, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
+		rg::Format::R32_TYPELESS, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
 	// クリア値は desc が持ち、LoadOp::Clear の宣言だけでバックエンドがクリアする
 	const rg::TextureDesc backbufferDesc{ window_width, window_height,
 		rg::Format::RGBA8_UNorm, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
+	const rg::TextureDesc shadowDesc{ 1024, 1024,
+	rg::Format::R32_TYPELESS, { 1,1,1,1 }, 1.0f };
+
 
 	// オフスクリーンと深度は TexturePool が実体を持つ。毎フレーム宣言し直すが、
 	// 同じ名前と desc なら同じ物理リソースが返ってくるので確保は初回だけ。
@@ -179,21 +188,54 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	TextureHandle pera2 = graph.Create("pera2", colorDesc);
 	TextureHandle pera3 = graph.Create("pera3", colorDesc);*/
 	TextureHandle depth = graph.Create("depth", depthDesc);
+	TextureHandle shadowMap = graph.Create("shadowMap", shadowDesc);
 	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
 
-	// --- 1 枚目のオフスクリーンに 3D を描く ---
-	struct ScenePass { TextureHandle color, depth; };
+	// --- ① ライトから見た深度だけを描く。カラーアタッチメント無し ---
+	struct ShadowPass { TextureHandle depth; };
+	graph.AddPass<ShadowPass>("ShadowMap",
+		[&](rg::RenderGraph::Builder& b, ShadowPass& d) {
+			d.depth = shadowMap = b.SetDepthAttachment(shadowMap, LoadOp::Clear);
+		},
+		[this](const ShadowPass&, rg::CommandContext&) {
+			// 地面は影を受けるだけなので、ここには出てこない
+			_pmdRenderer->DrawShadow(*_scene);
+			_gregoryRenderer->DrawShadow(*_scene);
+		});
+
+	// --- ② 通常の 3D ---
+	struct ScenePass { TextureHandle color, depth, shadow; };
 	graph.AddPass<ScenePass>("3D",
 		[&](rg::RenderGraph::Builder& b, ScenePass& d) {
 			d.color = bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);
-			//d.color = pera1 = b.SetRenderAttachment(pera1, 0, LoadOp::Clear);
 			d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
+			d.shadow = b.SampledRead(shadowMap);
 		},
-		[this](const ScenePass&, rg::CommandContext&) {
-			_pmdRenderer->Draw(*_scene);
-			_gregoryRenderer->Draw(*_scene);
+		[this](const ScenePass& d, rg::CommandContext& ctx) {
+			// 読むシャドウマップはパスの宣言（SampledRead）で決まっている。
+			// ハンドル → physicalId → SRV とたどるだけ。
+			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			const auto shadowSrv = allocator.SrvOf(ctx.PhysicalOf(d.shadow));
+
+			_groundRenderer->Draw(*_scene, shadowSrv);
+			_pmdRenderer->Draw(*_scene, shadowSrv);
+			_gregoryRenderer->Draw(*_scene, shadowSrv);
 		});
+
+	// --- ③ 確認用：シャドウマップを可視化して上書き ---
+	// 画面全体を覆ってしまうので、焼けた深度を確認したいときだけ有効にする
+	//struct DepthVisualizePass { TextureHandle src; };
+	//graph.AddPass<DepthVisualizePass>("DepthVisualize",
+	//	[&](rg::RenderGraph::Builder& b, DepthVisualizePass& d) {
+	//		d.src = b.SampledRead(shadowMap);
+	//		bb = b.SetRenderAttachment(bb, 0, LoadOp::Load);
+	//	},
+	//	[this](const DepthVisualizePass& d, rg::CommandContext& ctx) {
+	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+	//		_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::DepthVisualize);
+	//	});
+
 
 	//// --- 歪み：1 枚目を読んで 2 枚目へ ---
 	//struct EffectPass { TextureHandle src; };
@@ -204,8 +246,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	//	},
 	//	[this](const EffectPass& d, rg::CommandContext& ctx) {
 	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-	//		_peraRenderer->Draw(allocator.SrvHeap(),
-	//			allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::Distortion);
+	//		_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::Distortion);
 	//	});
 
 	//// --- 横ぼかし：2 枚目を読んで 3 枚目へ ---
@@ -219,8 +260,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	//		// 読む先はパスの宣言（SampledRead）で決まっている。
 	//		// ハンドル → physicalId → SRV とたどるだけで、添字は出てこない。
 	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-	//		_peraRenderer->Draw(allocator.SrvHeap(),
-	//			allocator.SrvOf(ctx.PhysicalOf(d.src)),
+	//		_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)),
 	//			Effect::BlurHorizontal
 	//		);
 	//	});
@@ -233,8 +273,7 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	//	},
 	//	[this](const BlurPass& d, rg::CommandContext& ctx) {
 	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-	//		_peraRenderer->Draw(allocator.SrvHeap(),
-	//			allocator.SrvOf(ctx.PhysicalOf(d.src)),
+	//		_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)),
 	//			Effect::BlurHorizontal
 	//		);
 	//	});

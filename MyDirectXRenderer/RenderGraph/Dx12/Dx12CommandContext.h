@@ -9,7 +9,7 @@
 #include <string>
 
 #include "Dx12ResourceAllocator.h"
-#include "Frontend/CommandContext.h"
+#include "../CommandContext.h"
 
 D3D12_RESOURCE_STATES ToD3D12(rg::State s);
 

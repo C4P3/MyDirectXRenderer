@@ -2,7 +2,7 @@
 
 #include <assert.h>
 
-#include "../d3dx12.h"
+#include "../../d3dx12.h"
 
 void Dx12CommandContext::Transition(const std::string& name, uint32_t physicalId,
                                     rg::State from, rg::State to) {

@@ -1,12 +1,17 @@
-# RenderGraph 論理層のスケッチ
+# RenderGraph 論理層のテスト
 
-RenderGraph 導入を検討するための実験。**本体プロジェクト（`MyDirectXRenderer.vcxproj`）からは参照していない。**
+RenderGraph 導入を検討するための実験として始めたもの。
 
-D3D12 に依存しない論理層（Frontend）だけを実装してあるので、Mac の clang で単体でビルド・テストできる。
+**論理層そのものは本体（`MyDirectXRenderer/RenderGraph/`）へ移動済みで、ここに残っているのは
+テスト（`main.cpp`）とそのビルド定義（`Makefile`）だけ。** 論理層は D3D12 に依存しないので、
+本体のソースを相対パスで参照して Mac の clang で単体ビルド・実行できる。
 
 ```
 make test
 ```
+
+参照先は `Makefile` の `RG_DIR`（= `../../MyDirectXRenderer/RenderGraph`）。
+DX12 実装は `RenderGraph/Dx12/` にあり、こちらからは参照しない。
 
 サニタイザ付き（このマシンの macOS では ASan ランタイムが起動時に固まったので既定では無効）:
 
@@ -16,13 +21,27 @@ make SAN=1 test
 
 ## 何を実装しているか
 
+論理層（`MyDirectXRenderer/RenderGraph/` 直下）:
+
 | ファイル | 中身 |
 |---|---|
-| `RenderGraph.h` | 型定義。`TextureHandle` / `TextureDesc` / `Access` / `VirtualResource` / `RenderGraph::Builder` |
-| `RenderGraph.cpp` | `Compile()` の 6 ステップと `Execute()` |
-| `CommandContext.h` | **RHI の継ぎ目 その 1**。Mac 用のログ出力実装 `LoggingCommandContext` を同居させてある |
+| `RenderGraph.h` | 型定義。`TextureHandle` / `TextureDesc` / `Access` / `Attachment` / `VirtualResource` / `RenderGraph::Builder` |
+| `RenderGraph.cpp` | `Compile()` の 7 ステップと `Execute()` |
+| `CommandContext.h` | **RHI の継ぎ目 その 1**。テスト用のログ出力実装 `LoggingCommandContext` を同居させてある |
 | `TexturePool.h` / `.cpp` | フレームを越えて物理リソースを持ち回すプール。**RHI の継ぎ目 その 2**（`IResourceAllocator`） |
-| `main.cpp` | テスト 9 本 |
+
+DX12 実装（`MyDirectXRenderer/RenderGraph/Dx12/`）:
+
+| ファイル | 中身 |
+|---|---|
+| `Dx12CommandContext.h` / `.cpp` | バリアの発行と、`BeginPass()` での `OMSetRenderTargets` / `Clear*View` / `RSSetViewports` |
+| `Dx12ResourceAllocator.h` / `.cpp` | `CreateCommittedResource` と RTV / DSV / SRV ディスクリプタの確保。`physicalId` から実体を引ける唯一の場所 |
+
+テスト:
+
+| ファイル | 中身 |
+|---|---|
+| `main.cpp` | テスト 11 本 |
 
 `Compile()` の中身:
 
@@ -64,26 +83,35 @@ make SAN=1 test
 
 ## テストの答え合わせ
 
-現状の `Dx12Wrapper` が 1 フレームに手書きで発行しているバリアは **6 個**
+移行前の `Dx12Wrapper` が 1 フレームに手書きで発行していたバリアは **6 個**
 （`PreDrawToPera` / `PostDrawToPera` / `PreDrawToPera2` / `PostDrawToPera2` / `BeginDraw` / `EndDraw` に各 1 つ）。
-`TestCurrentGraph` の 2 フレーム目がこの 6 個と一致することを確認している。
-`depth` はパス間の辺にならないので遷移ゼロ、という点も現状のコードと合っている。
+`TestCurrentGraph` の 2 フレーム目がこの 6 個と一致することを確認している。移行後もこの本数は変わらない。
+`depth` はパス間の辺にならないので遷移ゼロ、という点も手書き時代と合っている。
 
 1 フレーム目は 4 個。リソースを「最初に必要な状態」で作るため初期バリアが要らず、
-2 フレーム目以降が定常状態になる。
+2 フレーム目以降が定常状態になる。DX12 では生成時に状態を決める必要があるので、
+`Acquire()` / `Allocate()` に「最初に必要な状態」を渡してこの性質を実機でも成立させている。
 
 ## まだ入れていないもの
 
 - **メモリのエイリアシング** — ライフタイム区間は出すが、重ならないリソースを同じメモリに重ねる処理はしない。オフスクリーン 2 枚では節約の動機がないため、ロードマップ B まで来てから
 - **内容がフレームを越えて残るリソース** — プールが再利用するのは「割り当て」だけで、内容は保証しない。TAA のヒストリバッファのように内容を持ち越したい場合は別概念（ping-pong か明示的な persistent フラグ）が必要
 - **パスの型分離**（raster / compute）
-- **`BufferHandle`** — 今はテクスチャだけ
+- **`BufferHandle`** — 今はテクスチャだけ。GPU が作って GPU が読むバッファ（GPU テッセレーションの出力、
+  GPU カリングの結果、`ExecuteIndirect` の引数）が出てきたときに必要になる。
+  Actor がロードする頂点・インデックス・定数バッファは UPLOAD ヒープで状態遷移が起きないため、対象外
 - **DX12 の state promotion / decay を考慮したバリアの削減** — 実機のデバッグレイヤを見ながらやる作業なので、今は「多めに出す」で固定
-- **`CommandContext::BeginPass()` へのアタッチメント情報の受け渡し** — DX12 実装で `OMSetRenderTargets` / `Clear*View` を呼ぶときに必要になる
-- **ディスクリプタ（RTV / DSV / SRV）の管理** — `IResourceAllocator` の Windows 実装が面倒を見る部分。今の `Dx12Wrapper` は `_peraRTVHeap` / `_peraSRVHeap` を手で作っている
-- **正確なサイズ計算** — `EstimateSizeBytes()` は `width * height * bpp` の概算。Windows では `GetResourceAllocationInfo()` を使わないとアラインメント分がずれる
+- **深度を SRV で読むこと** — TYPELESS で作ってビューごとにフォーマットを変える必要がある。
+  今は `Dx12ResourceAllocator::Allocate()` の assert で弾いている。シャドウマップで必要になる
+- **予算の設定** — `SetBudgetBytes()` を呼んでいないので、確保は失敗しない。
+  `EstimateSizeBytes()` も `width * height * bpp` の概算のままで、Windows では
+  `GetResourceAllocationInfo()` を使わないとアラインメント分がずれる
+- **`Compile()` が `false` を返したときの扱い** — 今は assert で止まるだけ。
+  プロキシ（粗いテッセレーション / 低解像度テクスチャ）へ落とす処理は未実装
 
-## 文字コード
+### 入れ終わったもの
 
-本体と同じく **BOM 付き UTF-8**。Mac 上での実験用なので Visual Studio では開かない前提だが、
-文字コードは揃えてあるのでそのまま本体に持っていける。
+- **`CommandContext::BeginPass()` へのアタッチメント情報の受け渡し** — 宣言（スロットと `LoadOp`）から
+  `OMSetRenderTargets` / `Clear*View` / `RSSetViewports` が決まるようになった。
+  ビューポートは書き込み先のサイズから導出するので、解像度の違うパスが来てもパス側は何もしなくてよい
+- **ディスクリプタ（RTV / DSV / SRV）の管理** — `Dx12ResourceAllocator` がヒープを持ち、確保と解放を行う

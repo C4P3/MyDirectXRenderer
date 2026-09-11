@@ -14,7 +14,7 @@
 #include "Debug.h"
 #include "Dx12Wrapper.h"
 #include "Scene.h"
-#include "RenderGraph/Dx12ResourceAllocator.h"
+#include "RenderGraph/Dx12/Dx12ResourceAllocator.h"
 
 
 #pragma comment(lib, "d3dcompiler.lib")

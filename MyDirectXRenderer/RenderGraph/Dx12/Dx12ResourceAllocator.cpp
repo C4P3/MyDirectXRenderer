@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../d3dx12.h"
+#include "../../d3dx12.h"
 
 D3D12_RESOURCE_STATES ToD3D12(rg::State s) {
     switch (s) {

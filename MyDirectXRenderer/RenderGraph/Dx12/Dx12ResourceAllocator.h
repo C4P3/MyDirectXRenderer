@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include "Frontend/TexturePool.h"
+#include "../TexturePool.h"
 
 // rg::State を D3D12 の状態に翻訳する。バックエンド共通。
 D3D12_RESOURCE_STATES ToD3D12(rg::State s);

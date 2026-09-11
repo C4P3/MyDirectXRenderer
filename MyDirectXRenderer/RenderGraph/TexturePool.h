@@ -1,8 +1,9 @@
 ﻿// TexturePool — フレームを越えて物理リソースを持ち回すプール
 //
 // RenderGraph（論理層）が計算したライフタイムに基づいて、ここから物理リソースを引く。
-// RHI 依存はすべて IResourceAllocator の向こう側に隔離してあるので、
-// プールの方針（キー・追い出し・遅延解放・予算）は Mac 上でテストできる。
+// RHI 依存はすべて IResourceAllocator（＝継ぎ目その 2）の向こう側に隔離してあるので、
+// プールの方針（キー・追い出し・遅延解放・予算）は GPU なしでテストできる。
+// DX12 実装は Dx12/Dx12ResourceAllocator。
 #pragma once
 
 #include <cstdint>

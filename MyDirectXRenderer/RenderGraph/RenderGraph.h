@@ -1,7 +1,14 @@
-﻿// RenderGraph 論理層（Frontend）のスケッチ
+﻿// RenderGraph の論理層
 //
-// D3D12 に一切依存しない。唯一の継ぎ目は CommandContext（CommandContext.h）で、
-// これを差し替えることで Mac 上のダミーバックエンドでも DX12 でも動く想定。
+// D3D12 に一切依存しない。継ぎ目は 2 つだけで、
+//   - CommandContext   （CommandContext.h）… コマンドの発行
+//   - IResourceAllocator（TexturePool.h）  … 物理リソースの確保
+// これを差し替えることで、Mac のダミーバックエンドでも DX12 でも動く。
+// DX12 実装は Dx12/ にあり、この階層からは参照しない。
+//
+// Experiments/RenderGraph からテストとして単体ビルドできる状態を保つこと
+// （<d3d12.h> や <Windows.h> をここに持ち込まない）。
+
 #pragma once
 
 #include <cstdint>

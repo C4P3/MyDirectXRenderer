@@ -8,3 +8,10 @@ struct Output
     float3 wpos : POSITION; // ワールド座標。グリッドの描画に使う
     float4 tpos : TPOS;     // ライトから見たクリップ空間の座標
 };
+
+struct PSOutput
+{
+    float4 color : SV_Target0;
+    float4 normal : SV_Target1;
+};
+

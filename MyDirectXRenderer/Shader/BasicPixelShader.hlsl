@@ -1,7 +1,10 @@
 #include "BasicShaderHeader.hlsli"
 
-float4 BasicPS(Output input) : SV_TARGET
+PSOutput BasicPS(Output input)
 {
+    PSOutput o;
+    
+    
     // 平行光線ベクトル。シャドウマップを焼いた向きと同じものが b0 で来る
     float3 light = lightVec;
     
@@ -37,5 +40,8 @@ float4 BasicPS(Output input) : SV_TARGET
         float4((float3)texColor * ambient, 1)   // アンビエント
     );
 
-    return float4(color.rgb * shadowWeight, color.a);
+    
+    o.color = float4(color.rgb * shadowWeight, color.a);
+    o.normal = float4((normalize(input.normal.xyz) + 1.0f) * 0.5f, 1); // [-1,1] → [0,1]
+    return o;
 }

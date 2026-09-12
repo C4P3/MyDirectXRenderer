@@ -102,6 +102,15 @@
     <ClCompile Include="RenderGraph\TexturePool.cpp">
       <Filter>RenderGraph</Filter>
     </ClCompile>
+    <ClCompile Include="Debug.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="DescriptorHeap.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="GroundRenderer.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\BasicPixelShader.hlsl">
@@ -122,9 +131,6 @@
     <None Include="Shader\GregoryShaderHeader.hlsli">
       <Filter>Shader</Filter>
     </None>
-    <None Include="Shader\peraPixel.hlsl">
-      <Filter>Shader</Filter>
-    </None>
     <None Include="Shader\peraVertex.hlsl">
       <Filter>Shader</Filter>
     </None>
@@ -132,6 +138,24 @@
       <Filter>Shader</Filter>
     </None>
     <None Include="Shader\VerticalBokehPS.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\DistortionPS.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\EffectGallery.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\GroundShaderHeader.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\HorizontalBokehPS.hlsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\SceneShaderHeader.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\ShadowShaderHeader.hlsli">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>
@@ -181,5 +205,34 @@
     <ClInclude Include="RenderGraph\TexturePool.h">
       <Filter>RenderGraph</Filter>
     </ClInclude>
+    <ClInclude Include="Debug.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="DescriptorHeap.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="GroundRenderer.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Shader\DepthVisualizePS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\GregoryShadowVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\GroundPixelShader.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\GroundVertexShader.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\NormalVisualizePS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

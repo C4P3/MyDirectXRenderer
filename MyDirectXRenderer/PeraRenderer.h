@@ -12,6 +12,7 @@ enum class Effect : size_t
 	BlurVertical,
 	Distortion,
 	DepthVisualize,
+	NormalVisualize,
 	Count
 };
 

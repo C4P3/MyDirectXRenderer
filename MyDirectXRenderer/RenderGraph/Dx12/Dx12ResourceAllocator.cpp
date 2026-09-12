@@ -24,10 +24,11 @@ namespace {
 // リソース自体のフォーマット
 DXGI_FORMAT ResourceFormat(rg::Format f) {
     switch (f) {
-    case rg::Format::D32_Float:   return DXGI_FORMAT_D32_FLOAT;
+    case rg::Format::D32_Float:    return DXGI_FORMAT_D32_FLOAT;
     case rg::Format::R32_TYPELESS: return DXGI_FORMAT_R32_TYPELESS;
+    case rg::Format::RGBA8_UNorm_Linear:
     case rg::Format::RGBA8_UNorm:
-    default:                      return DXGI_FORMAT_R8G8B8A8_UNORM;
+    default:                       return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
 }
 
@@ -39,6 +40,7 @@ DXGI_FORMAT ViewFormat(rg::Format f, bool asShaderResource = false) {
     switch (f) {
     case rg::Format::D32_Float:    return DXGI_FORMAT_D32_FLOAT;
     case rg::Format::R32_TYPELESS: return asShaderResource ? DXGI_FORMAT_R32_FLOAT : DXGI_FORMAT_D32_FLOAT;
+    case rg::Format::RGBA8_UNorm_Linear: return DXGI_FORMAT_R8G8B8A8_UNORM;  // ガンマをかけない
     case rg::Format::RGBA8_UNorm:
     default:                       return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     }

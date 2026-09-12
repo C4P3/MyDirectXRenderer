@@ -209,8 +209,9 @@ bool GregoryRenderer::Init()
 	//三角形で構成
 	gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-	gpipeline.NumRenderTargets = 1;
+	gpipeline.NumRenderTargets = 2;
 	gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	gpipeline.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	gpipeline.SampleDesc.Count = 1;
 	gpipeline.SampleDesc.Quality = 0;
@@ -242,7 +243,12 @@ bool GregoryRenderer::Init()
 	gpipeline.PS.pShaderBytecode = nullptr;
 	gpipeline.PS.BytecodeLength = 0;
 	gpipeline.NumRenderTargets = 0;
-	gpipeline.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;   // NumRenderTargets = 0 なら UNKNOWN 必須
+	// NumRenderTargets 以上の添字は全部 UNKNOWN でないといけない。
+	// 色用 PSO の設定を使い回しているので、MRT 化で増えた [1] も戻す。
+	for (UINT i = 0; i < _countof(gpipeline.RTVFormats); ++i)
+	{
+		gpipeline.RTVFormats[i] = DXGI_FORMAT_UNKNOWN;
+	}
 
 	result = _dx12.Device()->CreateGraphicsPipelineState(
 		&gpipeline, IID_PPV_ARGS(&_shadowPipelineState));

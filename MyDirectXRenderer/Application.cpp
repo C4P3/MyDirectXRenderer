@@ -178,6 +178,9 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 		rg::Format::RGBA8_UNorm, { 1.0f, 1.0f, 1.0f, 1.0f }, 1.0f };
 	const rg::TextureDesc shadowDesc{ 1024, 1024,
 	rg::Format::R32_TYPELESS, { 1,1,1,1 }, 1.0f };
+	// 法線は色ではないので linear。クリア値 0.5 は「法線 (0,0,0)」= 何も描かれていない印
+	const rg::TextureDesc normalDesc{ window_width, window_height,
+		rg::Format::RGBA8_UNorm_Linear, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
 
 
 	// オフスクリーンと深度は TexturePool が実体を持つ。毎フレーム宣言し直すが、
@@ -191,8 +194,9 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	TextureHandle shadowMap = graph.Create("shadowMap", shadowDesc);
 	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
+	TextureHandle normal = graph.Create("normal", normalDesc);
 
-	// --- ① ライトから見た深度だけを描く。カラーアタッチメント無し ---
+	// --- ライトから見た深度だけを描く。カラーアタッチメント無し ---
 	struct ShadowPass { TextureHandle depth; };
 	graph.AddPass<ShadowPass>("ShadowMap",
 		[&](rg::RenderGraph::Builder& b, ShadowPass& d) {
@@ -204,11 +208,12 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			_gregoryRenderer->DrawShadow(*_scene);
 		});
 
-	// --- ② 通常の 3D ---
-	struct ScenePass { TextureHandle color, depth, shadow; };
+	// --- 通常の 3D ---
+	struct ScenePass { TextureHandle color, normal, depth, shadow; };
 	graph.AddPass<ScenePass>("3D",
 		[&](rg::RenderGraph::Builder& b, ScenePass& d) {
 			d.color = bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);
+			d.normal = normal = b.SetRenderAttachment(normal, 1, LoadOp::Clear);
 			d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
 			d.shadow = b.SampledRead(shadowMap);
 		},
@@ -223,18 +228,30 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			_gregoryRenderer->Draw(*_scene, shadowSrv);
 		});
 
+	// --- 確認用：法線バッファを可視化して上書き ---
+	struct NormalVisualizePass { TextureHandle src; };
+	graph.AddPass<NormalVisualizePass>("NormalVisualize",
+		[&](rg::RenderGraph::Builder& b, NormalVisualizePass& d) {
+			d.src = b.SampledRead(normal);
+			bb = b.SetRenderAttachment(bb, 0, LoadOp::Load);   // bb のバージョンを進めるので ImGui の前に並ぶ
+		},
+		[this](const NormalVisualizePass& d, rg::CommandContext& ctx) {
+			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::NormalVisualize);
+		});
+
 	// --- ③ 確認用：シャドウマップを可視化して上書き ---
 	// 画面全体を覆ってしまうので、焼けた深度を確認したいときだけ有効にする
-	//struct DepthVisualizePass { TextureHandle src; };
-	//graph.AddPass<DepthVisualizePass>("DepthVisualize",
-	//	[&](rg::RenderGraph::Builder& b, DepthVisualizePass& d) {
-	//		d.src = b.SampledRead(shadowMap);
-	//		bb = b.SetRenderAttachment(bb, 0, LoadOp::Load);
-	//	},
-	//	[this](const DepthVisualizePass& d, rg::CommandContext& ctx) {
-	//		const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
-	//		_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::DepthVisualize);
-	//	});
+	/*struct DepthVisualizePass { TextureHandle src; };
+	graph.AddPass<DepthVisualizePass>("DepthVisualize",
+		[&](rg::RenderGraph::Builder& b, DepthVisualizePass& d) {
+			d.src = b.SampledRead(shadowMap);
+			bb = b.SetRenderAttachment(bb, 0, LoadOp::Load);
+		},
+		[this](const DepthVisualizePass& d, rg::CommandContext& ctx) {
+			const auto& allocator = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			_peraRenderer->Draw(allocator.SrvOf(ctx.PhysicalOf(d.src)), Effect::DepthVisualize);
+		});*/
 
 
 	//// --- 歪み：1 枚目を読んで 2 枚目へ ---

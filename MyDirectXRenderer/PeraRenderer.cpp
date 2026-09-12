@@ -261,7 +261,8 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	{ Effect::BlurHorizontal, L"Shader/HorizontalBokehPS.hlsl", "HorizontalBokehPS" },
 	{ Effect::BlurVertical,   L"Shader/VerticalBokehPS.hlsl",   "VerticalBokehPS"   },
 	{ Effect::Distortion,     L"Shader/DistortionPS.hlsl",      "DistortionPS"      },
-	{ Effect::DepthVisualize, L"Shader/DepthVisualizePS.hlsl",  "DepthVisualizePS"  }
+	{ Effect::DepthVisualize, L"Shader/DepthVisualizePS.hlsl",  "DepthVisualizePS"  },
+	{ Effect::NormalVisualize, L"Shader/NormalVisualizePS.hlsl", "NormalVisualizePS" }
 	};
 
 	for (const auto& s : kEffectShaders) {

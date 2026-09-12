@@ -26,6 +26,10 @@ using Microsoft::WRL::ComPtr;
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
 
+// 縮小バッファに積む段数。720 なら 360 + 180 + ... + 2.8 で 717 まで使う。
+// Shader/BloomShaderHeader.hlsli の bloomShrinkLevels と合わせること
+const int bloom_shrink_levels = 8;
+
 
 static LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
@@ -181,6 +185,14 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	// 法線は色ではないので linear。クリア値 0.5 は「法線 (0,0,0)」= 何も描かれていない印
 	const rg::TextureDesc normalDesc{ window_width, window_height,
 		rg::Format::RGBA8_UNorm_Linear, { 0.5f, 0.5f, 0.5f, 1.0f }, 1.0f };
+	// 高輝度は float16。UNORM だと書き込み時に 1.0 で切り捨てられて、
+	// 1.1 も 5.0 も同じ明るさになりブルームの強弱が出ない。クリアは黒
+	const rg::TextureDesc brightDesc{ window_width, window_height,
+		rg::Format::RGBA16_Float, { 0.0f, 0.0f, 0.0f, 0.0f }, 1.0f };
+	// 縮小バッファ。横は半分、縦は元のまま。ここに 1/2, 1/4, ... と縮めたものを縦に積む。
+	// 高さの合計は元の高さの 1/2 + 1/4 + ... なので、必ず縦に収まる
+	const rg::TextureDesc shrinkDesc{ window_width / 2, window_height,
+		rg::Format::RGBA16_Float, { 0.0f, 0.0f, 0.0f, 0.0f }, 1.0f };
 
 
 	// オフスクリーンと深度は TexturePool が実体を持つ。毎フレーム宣言し直すが、
@@ -195,6 +207,8 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 	TextureHandle bb = graph.Import("backbuffer", backbufferDesc, backbufferId,
 		State::Present, State::Present);
 	TextureHandle normal = graph.Create("normal", normalDesc);
+	TextureHandle bright = graph.Create("bright", brightDesc);
+	TextureHandle shrink = graph.Create("bloomShrink", shrinkDesc);
 
 	// --- ライトから見た深度だけを描く。カラーアタッチメント無し ---
 	struct ShadowPass { TextureHandle depth; };
@@ -209,11 +223,12 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 		});
 
 	// --- 通常の 3D ---
-	struct ScenePass { TextureHandle color, normal, depth, shadow; };
+	struct ScenePass { TextureHandle color, normal, bright, depth, shadow; };
 	graph.AddPass<ScenePass>("3D",
 		[&](rg::RenderGraph::Builder& b, ScenePass& d) {
 			d.color = pera1 = b.SetRenderAttachment(pera1, 0, LoadOp::Clear);
 			d.normal = normal = b.SetRenderAttachment(normal, 1, LoadOp::Clear);
+			d.bright = bright = b.SetRenderAttachment(bright, 2, LoadOp::Clear);
 			d.depth = depth = b.SetDepthAttachment(depth, LoadOp::Clear);
 			d.shadow = b.SampledRead(shadowMap);
 		},
@@ -228,24 +243,54 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			_gregoryRenderer->Draw(*_scene, shadowSrv);
 		});
 
-	// --- 1 枚目を全画面に貼ってバックバッファへ ---
-	struct PresentPass { TextureHandle src; };
+	// --- 高輝度を縮小バッファへ積む ---
+	// 同じ高輝度バッファを、ビューポートを半分ずつにしながら縦に並べて焼く。
+	// 縮小そのものはサンプラのフィルタに任せていて、ガウシアンは合成時にかける。
+	struct ShrinkPass { TextureHandle src; };
+	graph.AddPass<ShrinkPass>("BloomShrink",
+		[&](rg::RenderGraph::Builder& b, ShrinkPass& d) {
+			d.src = b.SampledRead(bright);
+			shrink = b.SetRenderAttachment(shrink, 0, LoadOp::Clear);
+		},
+		[this](const ShrinkPass& d, rg::CommandContext& ctx) {
+			const auto& alloc = static_cast<Dx12CommandContext&>(ctx).Allocator();
+			const auto srv = alloc.SrvOf(ctx.PhysicalOf(d.src));
+
+			float w = window_width / 2.0f;
+			float h = window_height / 2.0f;
+			float y = 0.0f;
+			for (int i = 0; i < bloom_shrink_levels; ++i) {
+				_peraRenderer->DrawTile(*_scene, srv, Effect::Through,
+					0.0f, y, w, h, TargetFormat::HDR);
+				y += h;
+				w *= 0.5f;
+				h *= 0.5f;
+			}
+		});
+
+	// --- 1 枚目にブルームを合成してバックバッファへ ---
+	// 縮小バッファの各段をガウシアンでぼかしながら足し込む
+	struct PresentPass { TextureHandle src, shrink; };
 	graph.AddPass<PresentPass>("Present",
 		[&](rg::RenderGraph::Builder& b, PresentPass& d) {
 			d.src = b.SampledRead(pera1);
+			d.shrink = b.SampledRead(shrink);
 			bb = b.SetRenderAttachment(bb, 0, LoadOp::Clear);
 		},
 		[this](const PresentPass& d, rg::CommandContext& ctx) {
 			const auto& alloc = static_cast<Dx12CommandContext&>(ctx).Allocator();
-			_peraRenderer->Draw(*_scene, alloc.SrvOf(ctx.PhysicalOf(d.src)), Effect::Through);
+			_peraRenderer->Draw(*_scene, alloc.SrvOf(ctx.PhysicalOf(d.src)), Effect::Bloom,
+				TargetFormat::Color, alloc.SrvOf(ctx.PhysicalOf(d.shrink)));
 		});
 
-	// --- 確認用：左端に 4 枚並べる。Present の後ろに置くこと ---
-	struct DebugViewPass { TextureHandle color, normal, shadow, depth; };
+	// --- 確認用：左端にタイルを並べる。Present の後ろに置くこと ---
+	struct DebugViewPass { TextureHandle color, normal, bright, shrink, shadow, depth; };
 	graph.AddPass<DebugViewPass>("DebugView",
 		[&](rg::RenderGraph::Builder& b, DebugViewPass& d) {
 			d.color = b.SampledRead(pera1);
 			d.normal = b.SampledRead(normal);
+			d.bright = b.SampledRead(bright);
+			d.shrink = b.SampledRead(shrink);
 			d.shadow = b.SampledRead(shadowMap);
 			d.depth = b.SampledRead(depth);
 			bb = b.SetRenderAttachment(bb, 0, LoadOp::Load);
@@ -256,15 +301,18 @@ void Application::BuildGraph(rg::RenderGraph& graph, uint32_t backbufferId)
 			const struct { TextureHandle handle; Effect effect; } tiles[] = {
 				{ d.color,  Effect::Through },
 				{ d.normal, Effect::Through },
+				{ d.bright, Effect::Through },
+				{ d.shrink, Effect::Through },
 				{ d.shadow, Effect::DepthVisualize },        // ライトは平行投影なので深度が線形
 				{ d.depth,  Effect::LinearDepthVisualize },  // カメラは透視投影なので線形化が要る
 			};
 
-			constexpr float w = window_width / 5.0f;
-			constexpr float h = window_height / 5.0f;
-			for (int i = 0; i < 4; ++i) {
+			// 枚数で割るので、増減させても縦に収まったまま画面の縦横比を保つ
+			const float w = window_width / static_cast<float>(_countof(tiles));
+			const float h = window_height / static_cast<float>(_countof(tiles));
+			for (size_t i = 0; i < _countof(tiles); ++i) {
 				_peraRenderer->DrawTile(*_scene, alloc.SrvOf(ctx.PhysicalOf(tiles[i].handle)),
-					tiles[i].effect, 0.0f, h * i, w, h);
+					tiles[i].effect, 0.0f, h * static_cast<float>(i), w, h);
 			}
 		});
 

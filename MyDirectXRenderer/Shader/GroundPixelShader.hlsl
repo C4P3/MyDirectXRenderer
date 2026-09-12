@@ -18,5 +18,6 @@ PSOutput GroundPS(Output input)
     
     o.color = float4(color, 1);
     o.normal = float4((normal + 1.0f) * 0.5f, 1); // (0,1,0) → (0.5,1,0.5)
+    o.bright = BrightPass(color); // base が最大 0.72 なので、地面は原理的に引っかからない
     return o;
 }

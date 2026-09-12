@@ -35,7 +35,7 @@ struct TextureHandle {
 
 // --- 2. リソース記述：用途（RT/DSV/SRV）は書かない -------------------------
 // 用途は全パスの宣言を集計して Compile() が導出する。
-enum class Format { RGBA8_UNorm, RGBA8_UNorm_Linear, D32_Float, R32_TYPELESS };
+enum class Format { RGBA8_UNorm, RGBA8_UNorm_Linear, RGBA16_Float, D32_Float, R32_TYPELESS };
 enum class LoadOp { Load, Clear };
 
 struct TextureDesc {

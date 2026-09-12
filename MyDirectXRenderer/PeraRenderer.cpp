@@ -125,7 +125,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	_bokehParamBuffer->Unmap(0, nullptr);
 
 
-	D3D12_DESCRIPTOR_RANGE ranges[2] = {};
+	D3D12_DESCRIPTOR_RANGE ranges[3] = {};
 	// t0 : 前のパスの結果
 	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
 	ranges[0].BaseShaderRegister = 0;  // 0
@@ -134,8 +134,12 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
 	ranges[1].BaseShaderRegister = 1;  // 1
 	ranges[1].NumDescriptors = 1;
+	// t2 : 2 枚目のテクスチャ（ブルームの縮小バッファ）
+	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // t
+	ranges[2].BaseShaderRegister = 2;  // 2
+	ranges[2].NumDescriptors = 1;
 
-	D3D12_ROOT_PARAMETER rp[4] = {};
+	D3D12_ROOT_PARAMETER rp[5] = {};
 	rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rp[0].DescriptorTable.pDescriptorRanges = &ranges[0];
@@ -154,11 +158,16 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	rp[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rp[3].Descriptor.ShaderRegister = 0;   // b0
 
+	rp[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rp[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rp[4].DescriptorTable.pDescriptorRanges = &ranges[2];
+	rp[4].DescriptorTable.NumDescriptorRanges = 1;
+
 	D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0); // s0
 
 	// ルートシグネチャ
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-	rootSignatureDesc.NumParameters = 4;
+	rootSignatureDesc.NumParameters = 5;
 	rootSignatureDesc.pParameters = rp;
 	rootSignatureDesc.NumStaticSamplers = 1;
 	rootSignatureDesc.pStaticSamplers = &sampler;
@@ -196,7 +205,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	gpipeline.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	gpipeline.NumRenderTargets = 1;
-	gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	// RTVFormats[0] は書き込み先ごとに差し替えて、エフェクト × フォーマットの数だけ作る
 	gpipeline.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;
 	gpipeline.SampleDesc.Count = 1;
@@ -267,17 +276,28 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 		{ Effect::Distortion,     L"Shader/DistortionPS.hlsl",      "DistortionPS"      },
 		{ Effect::DepthVisualize, L"Shader/DepthVisualizePS.hlsl",  "DepthVisualizePS"  },
 		{ Effect::Through, L"Shader/ThroughPS.hlsl", "ThroughPS" },
-		{ Effect::LinearDepthVisualize, L"Shader/LinearDepthVisualizePS.hlsl", "LinearDepthVisualizePS" }
+		{ Effect::LinearDepthVisualize, L"Shader/LinearDepthVisualizePS.hlsl", "LinearDepthVisualizePS" },
+		{ Effect::Bloom, L"Shader/BloomPS.hlsl", "BloomPS" }
+	};
+
+	// TargetFormat の並びと合わせること
+	static const DXGI_FORMAT kTargetFormats[static_cast<size_t>(TargetFormat::Count)] = {
+		DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,	// TargetFormat::Color
+		DXGI_FORMAT_R16G16B16A16_FLOAT,		// TargetFormat::HDR
 	};
 
 	for (const auto& s : kEffectShaders) {
 		if (!compileShader(s.file, s.entry, "ps_5_0", _psBlob))
 			return DebugFail("PeraRenderer::Init", "ピクセルシェーダーのコンパイル");
 		gpipeline.PS = CD3DX12_SHADER_BYTECODE(_psBlob.Get());
-		result = _dx12.Device()->CreateGraphicsPipelineState(
-			&gpipeline, IID_PPV_ARGS(&_psos[static_cast<size_t>(s.effect)]));
-		if (FAILED(result))
-			return DebugFail("PeraRenderer::Init", "エフェクト用 PSO の生成", result);
+
+		for (size_t t = 0; t < static_cast<size_t>(TargetFormat::Count); ++t) {
+			gpipeline.RTVFormats[0] = kTargetFormats[t];
+			result = _dx12.Device()->CreateGraphicsPipelineState(
+				&gpipeline, IID_PPV_ARGS(&_psos[t][static_cast<size_t>(s.effect)]));
+			if (FAILED(result))
+				return DebugFail("PeraRenderer::Init", "エフェクト用 PSO の生成", result);
+		}
 	}
 
 	DirectX::TexMetadata metadata = {};
@@ -301,11 +321,13 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 }
 
 // 描画コマンドの積み込み
-void PeraRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect)
+void PeraRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect,
+	TargetFormat target, D3D12_GPU_DESCRIPTOR_HANDLE srv2)
 {
 	auto cmdList = _dx12.CommandList();
 
-	cmdList->SetPipelineState(_psos[static_cast<size_t>(effect)].Get());
+	cmdList->SetPipelineState(
+		_psos[static_cast<size_t>(target)][static_cast<size_t>(effect)].Get());
 	cmdList->SetGraphicsRootSignature(_rootSignature.Get());
 
 	// t0 も t1 も共有ヒープの中にある。バインドはパスの頭で済んでいる。
@@ -313,6 +335,8 @@ void PeraRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Eff
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 	cmdList->SetGraphicsRootDescriptorTable(2, _normalMapSrv);
 	cmdList->SetGraphicsRootConstantBufferView(3, scene.SceneCBAddress());
+	// t2 を読まないエフェクトでも、張らずに置くと未初期化のテーブルになるので t0 を入れておく
+	cmdList->SetGraphicsRootDescriptorTable(4, srv2.ptr != 0 ? srv2 : srv);
 
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	cmdList->IASetVertexBuffers(0, 1, &_peraVBV);
@@ -320,7 +344,7 @@ void PeraRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Eff
 }
 
 void PeraRenderer::DrawTile(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect,
-	float x, float y, float w, float h)
+	float x, float y, float w, float h, TargetFormat target)
 {
 	auto cmdList = _dx12.CommandList();
 
@@ -331,5 +355,5 @@ void PeraRenderer::DrawTile(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv,
 	cmdList->RSSetViewports(1, &vp);
 	cmdList->RSSetScissorRects(1, &sc);
 
-	Draw(scene, srv, effect);
+	Draw(scene, srv, effect, target);
 }

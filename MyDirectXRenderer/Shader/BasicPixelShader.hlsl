@@ -41,7 +41,11 @@ PSOutput BasicPS(Output input)
     );
 
     
-    o.color = float4(color.rgb * shadowWeight, color.a);
+    // 飽和前の最終カラー。ここで拾わないと、書き込み時に 1.0 で切り捨てられて高輝度が分からなくなる
+    float3 ret = color.rgb * shadowWeight;
+
+    o.color = float4(ret, color.a);
     o.normal = float4((normalize(input.normal.xyz) + 1.0f) * 0.5f, 1); // [-1,1] → [0,1]
+    o.bright = BrightPass(ret);
     return o;
 }

@@ -1,6 +1,7 @@
 // 頂点シェーダーからピクセルシェーダーへのやり取りに使う構造体
 #include "SceneShaderHeader.hlsli"
 #include "ShadowShaderHeader.hlsli"
+#include "BloomShaderHeader.hlsli"
 
 struct Output
 {
@@ -17,6 +18,7 @@ struct PSOutput
 {
     float4 color : SV_Target0;
     float4 normal : SV_Target1;
+    float4 bright : SV_Target2; // 高輝度部分（ブルームの元）
 };
 
 Texture2D<float4> tex : register(t0); // 0番スロットに設定されたテクスチャ

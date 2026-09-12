@@ -181,6 +181,8 @@
     <None Include="Shader\BasicShaderHeader.hlsli" />
     <None Include="Shader\SceneShaderHeader.hlsli" />
     <None Include="Shader\ShadowShaderHeader.hlsli" />
+    <None Include="Shader\BloomShaderHeader.hlsli" />
+    <None Include="Shader\BloomPS.hlsl" />
     <None Include="Shader\GroundShaderHeader.hlsli" />
     <None Include="Shader\GregoryShaderHeader.hlsli" />
     <None Include="Shader\peraHeader.hlsli" />

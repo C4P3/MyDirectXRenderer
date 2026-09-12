@@ -158,6 +158,12 @@
     <None Include="Shader\ShadowShaderHeader.hlsli">
       <Filter>Shader</Filter>
     </None>
+    <None Include="Shader\BloomShaderHeader.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\BloomPS.hlsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

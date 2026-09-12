@@ -1,5 +1,6 @@
 #include "SceneShaderHeader.hlsli"
 #include "ShadowShaderHeader.hlsli"
+#include "BloomShaderHeader.hlsli"
 
 cbuffer Transform : register(b2)
 {
@@ -17,4 +18,5 @@ struct PSOutput
 {
     float4 color : SV_Target0;
     float4 normal : SV_Target1;
+    float4 bright : SV_Target2; // 高輝度部分（ブルームの元）
 };

@@ -7,6 +7,7 @@ namespace rg {
 static size_t BytesPerPixel(Format f) {
     switch (f) {
         case Format::RGBA8_UNorm: return 4;
+        case Format::RGBA16_Float: return 8;
         case Format::D32_Float:   return 4;
     }
     return 4;

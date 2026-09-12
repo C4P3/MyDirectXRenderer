@@ -275,9 +275,10 @@ bool PMDRenderer::Init()
 		//三角形で構成
 		gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
-		gpipeline.NumRenderTargets = 2;
+		gpipeline.NumRenderTargets = 3;
 		gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		gpipeline.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		gpipeline.RTVFormats[1] = DXGI_FORMAT_R8G8B8A8_UNORM;   // 法線
+		gpipeline.RTVFormats[2] = DXGI_FORMAT_R16G16B16A16_FLOAT; // 高輝度（1.0 超えを残す）
 
 		gpipeline.SampleDesc.Count = 1;
 		gpipeline.SampleDesc.Quality = 0;

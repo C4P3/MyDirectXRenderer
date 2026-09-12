@@ -117,6 +117,9 @@ private:
         TextureDesc desc;
         uint32_t    physicalId = 0;
         size_t      sizeBytes  = 0;
+        // 確保時の用途。DX12 ではリソース生成時にフラグが固定されるので、
+        // 後から「SRV としても読みたい」と言われても既存のものは流用できない。
+        uint8_t     usageFlags = 0;
         State       state = State::Undefined;
         uint64_t    lastUsedFrame = 0;
         bool        inUseThisFrame   = false;

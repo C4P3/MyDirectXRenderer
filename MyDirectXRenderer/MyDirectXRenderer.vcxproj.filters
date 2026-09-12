@@ -231,7 +231,10 @@
     <FxCompile Include="Shader\ShadowVS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\NormalVisualizePS.hlsl">
+    <FxCompile Include="Shader\ThroughPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\LinearDepthVisualizePS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
   </ItemGroup>

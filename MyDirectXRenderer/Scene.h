@@ -5,16 +5,16 @@
 // b0 に送るシーン共通データ。world は入れない。
 // シェーダ側の宣言は Shader/SceneShaderHeader.hlsli 1 箇所にまとめてある。
 // HLSL の float3 は 16 バイト境界をまたげないので、eye の後ろに 1 行分の隙間ができる。
-// _pad はその隙間を C++ 側でも同じように空けるためのもの
+// nearZ, farZ はその隙間を C++ 側でも同じように空けるためのもの
 struct SceneData
 {
     DirectX::XMMATRIX view;
     DirectX::XMMATRIX proj;
     DirectX::XMMATRIX lightCamera;
     DirectX::XMFLOAT3 eye;
-    float             _pad0 = 0.0f;
+    float             nearZ = 1.0f; // 深度の線形化に使う
     DirectX::XMFLOAT3 lightVec;   // 正規化済みの平行光線ベクトル
-    float             _pad1 = 0.0f;
+    float             farZ = 100.0f; // 深度の線形化に使う
 };
 
 class Dx12Wrapper;

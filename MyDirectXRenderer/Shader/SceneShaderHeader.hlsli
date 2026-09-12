@@ -10,5 +10,7 @@ cbuffer SceneBuffer : register(b0)
     matrix proj;
     matrix lightCamera; // ライトから見たビュー×プロジェクション
     float3 eye;
+    float nearZ;
     float3 lightVec;    // 平行光線の向き（正規化済み）
+    float farZ;
 };

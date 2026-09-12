@@ -543,6 +543,39 @@ static void TestBudget() {
     }
 }
 
+// === テスト 12: 用途が足りないエントリは流用しない ==========================
+// パスを条件付きで宣言すると、DSV だけで確保された depth が後から
+// SampledRead に回ってくる。DX12 では DENY_SHADER_RESOURCE が付いた実体なので
+// 流用してはいけない（実機では SRV が無くて静かに壊れる）。
+static void TestUsageFlagsNotReused() {
+    std::printf("[TestUsageFlagsNotReused]\n");
+    FakeResourceAllocator alloc;
+    TexturePool           pool(alloc);
+    const TextureDesc     d{ 1280, 720, Format::D32_Float, { 1, 1, 1, 1 }, 1.0f };
+
+    // frame 1: デバッグ表示オフ。深度は DSV としてしか使わない
+    pool.BeginFrame();
+    const uint32_t e1 = pool.Acquire("depth", d, Usage::DepthStencil);
+    pool.EndFrame(1);
+    CHECK(alloc.allocateCount == 1);
+
+    // frame 2: デバッグ表示オン。SRV としても読みたくなった → 作り直しになる
+    pool.BeginFrame();
+    const uint32_t e2 = pool.Acquire("depth", d, Usage::DepthStencil | Usage::ShaderResource);
+    CHECK(alloc.allocateCount == 2);
+    CHECK(pool.PhysicalId(e1) != pool.PhysicalId(e2));
+    CHECK(alloc.records[pool.PhysicalId(e2)].usageFlags ==
+          (Usage::DepthStencil | Usage::ShaderResource));
+    pool.EndFrame(2);
+
+    // frame 3: 同じ用途なら今度は流用される
+    pool.BeginFrame();
+    const uint32_t e3 = pool.Acquire("depth", d, Usage::DepthStencil | Usage::ShaderResource);
+    CHECK(alloc.allocateCount == 2);
+    CHECK(pool.PhysicalId(e3) == pool.PhysicalId(e2));
+    pool.EndFrame(3);
+}
+
 int main() {
     TestCurrentGraph();
     TestAttachments();
@@ -555,6 +588,7 @@ int main() {
     TestEvictionAndDeferredRelease();
     TestResizeMakesNewResource();
     TestBudget();
+    TestUsageFlagsNotReused();
 
     if (g_failures == 0) {
         std::printf("\nall tests passed\n");

@@ -7,7 +7,7 @@ struct Output
     float2 uv : TEXCOORD;
 };
 
-cbuffer PostEffect : register(b0)
+cbuffer PostEffect : register(b1)
 {
     float4 bkweights[2]; // 16 個の float
 };

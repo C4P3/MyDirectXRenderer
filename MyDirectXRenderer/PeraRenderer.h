@@ -5,6 +5,7 @@
 
 class Dx12Wrapper;
 class Dx12ResourceAllocator;
+class Scene;
 
 enum class Effect : size_t
 {
@@ -12,7 +13,8 @@ enum class Effect : size_t
 	BlurVertical,
 	Distortion,
 	DepthVisualize,
-	NormalVisualize,
+	Through,
+	LinearDepthVisualize,
 	Count
 };
 
@@ -35,5 +37,8 @@ public:
 	// 読むテクスチャは RenderGraph が解決して渡す（どの物理リソースかは
 	// パスの SampledRead 宣言で決まるので、ここで添字を知る必要はない）
 	bool Init(Dx12ResourceAllocator& allocator);
-	void Draw(D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect);
+	void Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect);
+	// 画面の一部に描く。デバッグ表示用
+	void DrawTile(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect,
+		float x, float y, float w, float h);
 };

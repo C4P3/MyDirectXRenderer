@@ -135,7 +135,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	ranges[1].BaseShaderRegister = 1;  // 1
 	ranges[1].NumDescriptors = 1;
 
-	D3D12_ROOT_PARAMETER rp[3] = {};
+	D3D12_ROOT_PARAMETER rp[4] = {};
 	rp[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rp[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rp[0].DescriptorTable.pDescriptorRanges = &ranges[0];
@@ -143,18 +143,22 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 
 	rp[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;   // ヒープ不要
 	rp[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	rp[1].Descriptor.ShaderRegister = 0;   // b0
+	rp[1].Descriptor.ShaderRegister = 1;   // b1
 
 	rp[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rp[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rp[2].DescriptorTable.pDescriptorRanges = &ranges[1];
 	rp[2].DescriptorTable.NumDescriptorRanges = 1;
 
+	rp[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rp[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rp[3].Descriptor.ShaderRegister = 0;   // b0
+
 	D3D12_STATIC_SAMPLER_DESC sampler = CD3DX12_STATIC_SAMPLER_DESC(0); // s0
 
 	// ルートシグネチャ
 	D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
-	rootSignatureDesc.NumParameters = 3;
+	rootSignatureDesc.NumParameters = 4;
 	rootSignatureDesc.pParameters = rp;
 	rootSignatureDesc.NumStaticSamplers = 1;
 	rootSignatureDesc.pStaticSamplers = &sampler;
@@ -258,11 +262,12 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 	struct EffectShader { Effect effect; const wchar_t* file; const char* entry; };
 
 	static const EffectShader kEffectShaders[] = {
-	{ Effect::BlurHorizontal, L"Shader/HorizontalBokehPS.hlsl", "HorizontalBokehPS" },
-	{ Effect::BlurVertical,   L"Shader/VerticalBokehPS.hlsl",   "VerticalBokehPS"   },
-	{ Effect::Distortion,     L"Shader/DistortionPS.hlsl",      "DistortionPS"      },
-	{ Effect::DepthVisualize, L"Shader/DepthVisualizePS.hlsl",  "DepthVisualizePS"  },
-	{ Effect::NormalVisualize, L"Shader/NormalVisualizePS.hlsl", "NormalVisualizePS" }
+		{ Effect::BlurHorizontal, L"Shader/HorizontalBokehPS.hlsl", "HorizontalBokehPS" },
+		{ Effect::BlurVertical,   L"Shader/VerticalBokehPS.hlsl",   "VerticalBokehPS"   },
+		{ Effect::Distortion,     L"Shader/DistortionPS.hlsl",      "DistortionPS"      },
+		{ Effect::DepthVisualize, L"Shader/DepthVisualizePS.hlsl",  "DepthVisualizePS"  },
+		{ Effect::Through, L"Shader/ThroughPS.hlsl", "ThroughPS" },
+		{ Effect::LinearDepthVisualize, L"Shader/LinearDepthVisualizePS.hlsl", "LinearDepthVisualizePS" }
 	};
 
 	for (const auto& s : kEffectShaders) {
@@ -296,7 +301,7 @@ bool PeraRenderer::Init(Dx12ResourceAllocator& allocator)
 }
 
 // 描画コマンドの積み込み
-void PeraRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect)
+void PeraRenderer::Draw(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect)
 {
 	auto cmdList = _dx12.CommandList();
 
@@ -307,8 +312,24 @@ void PeraRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect)
 	cmdList->SetGraphicsRootDescriptorTable(0, srv);
 	cmdList->SetGraphicsRootConstantBufferView(1, _bokehParamBuffer->GetGPUVirtualAddress());
 	cmdList->SetGraphicsRootDescriptorTable(2, _normalMapSrv);
+	cmdList->SetGraphicsRootConstantBufferView(3, scene.SceneCBAddress());
 
 	cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	cmdList->IASetVertexBuffers(0, 1, &_peraVBV);
 	cmdList->DrawInstanced(4, 1, 0, 0);
+}
+
+void PeraRenderer::DrawTile(const Scene& scene, D3D12_GPU_DESCRIPTOR_HANDLE srv, Effect effect,
+	float x, float y, float w, float h)
+{
+	auto cmdList = _dx12.CommandList();
+
+	// パスの頭で BeginPass() が全画面のビューポートを張っているので、ここで上書きする
+	D3D12_VIEWPORT vp{ x, y, w, h, 0.0f, 1.0f };
+	D3D12_RECT sc{ static_cast<LONG>(x), static_cast<LONG>(y),
+				   static_cast<LONG>(x + w), static_cast<LONG>(y + h) };
+	cmdList->RSSetViewports(1, &vp);
+	cmdList->RSSetScissorRects(1, &sc);
+
+	Draw(scene, srv, effect);
 }

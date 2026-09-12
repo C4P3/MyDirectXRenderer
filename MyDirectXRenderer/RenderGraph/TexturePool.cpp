@@ -49,6 +49,12 @@ uint32_t TexturePool::Acquire(const std::string& name, const TextureDesc& desc,
         if (e.inUseThisFrame) continue;          // 同フレーム内で二重に貸さない
         if (e.name != name || e.descHash != hash) continue;
 
+        // 用途が足りないものは流用できない。DX12 では ALLOW_RENDER_TARGET /
+        // DENY_SHADER_RESOURCE などが生成時に決まってしまうため。
+        // パスを条件付きで宣言すると、SRV 無しで作られた実体が後から
+        // SampledRead に回ってくることがある。
+        if ((e.usageFlags & usageFlags) != usageFlags) continue;
+
         e.inUseThisFrame = true;
         e.lastUsedFrame  = _frame;
         return i;
@@ -64,6 +70,7 @@ uint32_t TexturePool::Acquire(const std::string& name, const TextureDesc& desc,
     e.name             = name;
     e.descHash         = hash;
     e.desc             = desc;
+    e.usageFlags = usageFlags;
     e.sizeBytes        = size;
     e.physicalId       = _allocator.Allocate(name, desc, usageFlags, size, initialState);
     e.state            = initialState;  // 「最初に必要な状態で作る」ので初期バリアが要らない

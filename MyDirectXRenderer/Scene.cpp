@@ -56,6 +56,9 @@ void Scene::Update()
         _shadowRadius * 0.5f, _shadowRadius * 4.0f);
 
     _mappedScene->lightCamera = lightView * lightProj;
+    
+    _mappedScene->nearZ = _near;
+    _mappedScene->farZ = _far;
 }
 
 void Scene::DrawDebugGui() {
